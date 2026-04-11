@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import './App.css'
-import { issueCatalog, seedCustomers, seedTransfers, statusMeta } from './sampleData'
+import { seedCustomers, seedTransfers, statusMeta } from './sampleData'
 import {
   FILTER_ALL,
   buildCustomerFromDraft,
@@ -8,43 +8,22 @@ import {
   createEmptyCustomerDraft,
   createEmptyTransferDraft,
   filterTransfers,
+  migrateState,
   parseAppStateBackup,
   serializeAppState,
+  settleTransfers,
   sortTransfers,
-  statusOrder,
   summarizeCustomers,
   summarizeTransfers,
-  togglePayment,
-  transitionTransfer,
-  updateAmount,
-  updateCustomerField,
-  updateTransferField,
 } from './lib/transferLogic'
-
-const STORAGE_KEY = 'western-office-state-v2'
-
-const currency = new Intl.NumberFormat('en-US', {
-  style: 'currency',
-  currency: 'USD',
-  maximumFractionDigits: 2,
-})
-
-function money(value) {
-  return currency.format(Number(value || 0))
-}
-
-function formatDate(value) {
-  if (!value) {
-    return '-'
-  }
-
-  return new Intl.DateTimeFormat('ar', {
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(new Date(value))
-}
+import { buildOpeningBalanceEntry, createProfitClaimEntry, summarizeOfficeLedger } from './lib/ledger'
+import { getPersistenceMode, loadPersistedState, savePersistedState } from './lib/persistence'
+import TabNav from './components/TabNav'
+import TransfersTab from './components/TransfersTab'
+import CustomersTab from './components/CustomersTab'
+import SettlementsTab from './components/SettlementsTab'
+import DailyClosingTab from './components/DailyClosingTab'
+import IssuesTab from './components/IssuesTab'
 
 function downloadFile({ fileName, content, contentType }) {
   const blob = new Blob([content], { type: contentType })
@@ -60,139 +39,189 @@ function downloadFile({ fileName, content, contentType }) {
 
 function buildCsv(rows, customersById) {
   const header = [
-    'reference',
-    'customer',
-    'sender',
-    'status',
-    'system_amount',
-    'customer_amount',
-    'margin',
-    'payment_status',
-    'note',
+    'reference', 'customer', 'sender', 'status', 'settled',
+    'system_amount', 'customer_amount', 'margin', 'note',
   ]
-
-  const escapeCell = (value) => `"${String(value ?? '').replaceAll('"', '""')}"`
-  const body = rows.map((item) =>
+  const esc = (v) => `"${String(v ?? '').replaceAll('"', '""')}"`
+  const body = rows.map((t) =>
     [
-      item.reference,
-      customersById.get(item.customerId)?.name || item.receiverName,
-      item.senderName,
-      statusMeta[item.status].label,
-      item.systemAmount ?? '',
-      item.customerAmount ?? '',
-      item.margin ?? '',
-      item.paymentStatus,
-      item.note || '',
-    ]
-      .map(escapeCell)
-      .join(','),
+      t.reference,
+      customersById.get(t.customerId)?.name || t.receiverName,
+      t.senderName,
+      statusMeta[t.status]?.label || t.status,
+      t.settled ? 'نعم' : 'لا',
+      t.systemAmount ?? '',
+      t.customerAmount ?? '',
+      t.margin ?? '',
+      t.note || '',
+    ].map(esc).join(','),
   )
-
   return `\uFEFF${[header.join(','), ...body].join('\n')}`
+}
+
+const FALLBACK_STATE = migrateState({
+  customers: seedCustomers,
+  transfers: seedTransfers,
+  ledgerEntries: [],
+  claimHistory: [],
+})
+
+const VALID_TABS = new Set(['transfers', 'customers', 'settlements', 'closing', 'issues'])
+
+function getTabFromHash() {
+  const hash = window.location.hash.replace('#', '')
+  return VALID_TABS.has(hash) ? hash : 'transfers'
 }
 
 function App() {
   const importRef = useRef(null)
+  const [activeTab, setActiveTab] = useState(getTabFromHash)
   const [transferDraft, setTransferDraft] = useState(createEmptyTransferDraft)
   const [customerDraft, setCustomerDraft] = useState(createEmptyCustomerDraft)
   const [feedback, setFeedback] = useState('')
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState(FILTER_ALL)
-  const [paymentFilter, setPaymentFilter] = useState(FILTER_ALL)
+  const [viewMode, setViewMode] = useState('active')
   const [customerFilter, setCustomerFilter] = useState(FILTER_ALL)
-  const [sortMode, setSortMode] = useState('latest')
-  const [state, setState] = useState(() => {
-    try {
-      const stored = window.localStorage.getItem(STORAGE_KEY)
-      return stored
-        ? JSON.parse(stored)
-        : { customers: seedCustomers, transfers: seedTransfers }
-    } catch {
-      return { customers: seedCustomers, transfers: seedTransfers }
-    }
-  })
+  const [sortMode, setSortMode] = useState('smart')
+  const [storageMode, setStorageMode] = useState(getPersistenceMode())
+  const [isHydrated, setIsHydrated] = useState(false)
+  const [_loadFailed, setLoadFailed] = useState(false)
+  const [state, setState] = useState(FALLBACK_STATE)
 
-  const { customers, transfers } = state
+  const { customers, transfers, ledgerEntries, claimHistory } = state
 
   useEffect(() => {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
-  }, [state])
+    let cancelled = false
+
+    async function hydrate() {
+      const result = await loadPersistedState(FALLBACK_STATE, migrateState)
+      if (cancelled) return
+      setStorageMode(result.mode)
+      if (result.loadError) {
+        setLoadFailed(true)
+        setFeedback('تعذر تحميل البيانات — لن يتم الحفظ حتى تُحل المشكلة.')
+      } else {
+        setState(result.state)
+        setIsHydrated(true)
+      }
+    }
+
+    hydrate()
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const changeTab = useCallback((tab) => {
+    setActiveTab(tab)
+    window.location.hash = tab
+  }, [])
+
+  useEffect(() => {
+    function onHashChange() {
+      setActiveTab(getTabFromHash())
+    }
+    window.addEventListener('hashchange', onHashChange)
+    return () => window.removeEventListener('hashchange', onHashChange)
+  }, [])
+
+  useEffect(() => {
+    if (!isHydrated) return
+
+    savePersistedState(state).catch(() => {
+      setFeedback('تعذر حفظ البيانات في طبقة التخزين الحالية.')
+    })
+  }, [isHydrated, state])
 
   const customersById = useMemo(
-    () => new Map(customers.map((item) => [item.id, item])),
+    () => new Map(customers.map((c) => [c.id, c])),
     [customers],
   )
 
   const filteredTransfers = useMemo(() => {
     const filtered = filterTransfers(
       transfers,
-      { searchTerm, statusFilter, paymentFilter, customerFilter },
+      { searchTerm, statusFilter, viewMode, customerFilter },
       customersById,
     )
     return sortTransfers(filtered, sortMode, customersById)
-  }, [
-    customerFilter,
-    customersById,
-    paymentFilter,
-    searchTerm,
-    sortMode,
-    statusFilter,
-    transfers,
-  ])
+  }, [customerFilter, customersById, searchTerm, viewMode, sortMode, statusFilter, transfers])
 
   const transferSummary = useMemo(
-    () => summarizeTransfers(filteredTransfers),
-    [filteredTransfers],
+    () => summarizeTransfers(transfers),
+    [transfers],
   )
   const customerSummary = useMemo(
-    () => summarizeCustomers(customers, transfers),
-    [customers, transfers],
+    () => summarizeCustomers(customers, transfers, ledgerEntries),
+    [customers, ledgerEntries, transfers],
+  )
+  const officeSummary = useMemo(
+    () => {
+      const nonClaimLedger = ledgerEntries.filter((e) => e.type !== 'profit_claim')
+      return summarizeOfficeLedger(customers, transfers, [...nonClaimLedger, ...claimHistory])
+    },
+    [claimHistory, customers, ledgerEntries, transfers],
   )
 
+  const issueCount = transferSummary.issueCount
+
   function patchTransfer(id, updater) {
-    setState((current) => ({
-      ...current,
-      transfers: current.transfers.map((item) => (item.id === id ? updater(item) : item)),
+    setState((s) => ({
+      ...s,
+      transfers: s.transfers.map((t) => (t.id === id ? updater(t) : t)),
     }))
   }
 
-  function patchCustomer(id, updater) {
-    setState((current) => ({
-      ...current,
-      customers: current.customers.map((item) => (item.id === id ? updater(item) : item)),
+  function deleteTransfer(id) {
+    setState((s) => ({
+      ...s,
+      transfers: s.transfers.filter((t) => t.id !== id),
     }))
   }
 
-  function handleAddCustomer(event) {
-    event.preventDefault()
-    const result = buildCustomerFromDraft(customerDraft, customers)
+  function handleSettle(transferIds) {
+    setState((s) => ({
+      ...s,
+      transfers: settleTransfers(s.transfers, transferIds),
+    }))
+    setFeedback(`تمت تسوية ${transferIds.length} حوالة.`)
+  }
 
-    if (!result.ok) {
-      setFeedback(result.error)
+  function handleClaimProfit() {
+    if (officeSummary.accountantClaimableProfit <= 0) {
+      setFeedback('لا يوجد ربح متاح للمطالبة الآن.')
       return
     }
 
-    setState((current) => ({
-      ...current,
-      customers: [...current.customers, result.value],
+    const entry = createProfitClaimEntry(officeSummary.accountantClaimableProfit)
+    setState((s) => ({
+      ...s,
+      claimHistory: [entry, ...s.claimHistory],
+    }))
+    setFeedback(`تم تسجيل Claim ربح بقيمة ${officeSummary.accountantClaimableProfit.toFixed(2)}.`)
+  }
+
+  function handleAddCustomer(e) {
+    e.preventDefault()
+    const result = buildCustomerFromDraft(customerDraft, customers)
+    if (!result.ok) { setFeedback(result.error); return }
+    const openingEntry = buildOpeningBalanceEntry(result.value)
+    setState((s) => ({
+      ...s,
+      customers: [...s.customers, result.value],
+      ledgerEntries: openingEntry ? [...s.ledgerEntries, openingEntry] : s.ledgerEntries,
     }))
     setCustomerDraft(createEmptyCustomerDraft())
     setFeedback('تمت إضافة الزبون.')
   }
 
-  function handleAddTransfer(event) {
-    event.preventDefault()
+  function handleAddTransfer(e) {
+    e.preventDefault()
     const result = buildTransferFromDraft(transferDraft, transfers, customers)
-
-    if (!result.ok) {
-      setFeedback(result.error)
-      return
-    }
-
-    setState((current) => ({
-      ...current,
-      transfers: [result.value, ...current.transfers],
-    }))
+    if (!result.ok) { setFeedback(result.error); return }
+    setState((s) => ({ ...s, transfers: [result.value, ...s.transfers] }))
     setTransferDraft(createEmptyTransferDraft())
     setFeedback('تمت إضافة الحوالة.')
   }
@@ -200,9 +229,9 @@ function App() {
   function resetFilters() {
     setSearchTerm('')
     setStatusFilter(FILTER_ALL)
-    setPaymentFilter(FILTER_ALL)
+    setViewMode('active')
     setCustomerFilter(FILTER_ALL)
-    setSortMode('latest')
+    setSortMode('smart')
   }
 
   function exportCsv() {
@@ -223,41 +252,33 @@ function App() {
     })
   }
 
-  async function handleImportBackup(event) {
-    const file = event.target.files?.[0]
+  async function handleImportBackup(e) {
+    const file = e.target.files?.[0]
     if (!file) return
-
     try {
       const text = await file.text()
-      const restored = parseAppStateBackup(text)
-      setState(restored)
+      setState(parseAppStateBackup(text))
       setFeedback('تم استرجاع النسخة الاحتياطية.')
-    } catch (error) {
-      setFeedback(error instanceof Error ? error.message : 'تعذر قراءة النسخة الاحتياطية.')
+    } catch (err) {
+      setFeedback(err instanceof Error ? err.message : 'تعذر قراءة النسخة الاحتياطية.')
     } finally {
-      event.target.value = ''
+      e.target.value = ''
     }
   }
 
   return (
     <div className="app-shell" dir="rtl">
       <header className="topbar">
-        <div>
+        <div className="topbar-title">
           <h1>Western Office</h1>
-          <p className="path-line">
-            المسار: <code>/Users/rabeeshaban/Documents/New project/western-office</code>
-          </p>
         </div>
         <div className="topbar-actions">
-          <button className="ghost-button" onClick={exportCsv}>
-            CSV
-          </button>
-          <button className="ghost-button" onClick={exportBackup}>
-            Backup
-          </button>
-          <button className="ghost-button" onClick={() => importRef.current?.click()}>
-            Restore
-          </button>
+          <span className="storage-badge">
+            {storageMode === 'supabase' ? 'تخزين سحابي' : 'تخزين محلي'}
+          </span>
+          <button className="ghost-button" onClick={exportCsv}>CSV</button>
+          <button className="ghost-button" onClick={exportBackup}>نسخة احتياطية</button>
+          <button className="ghost-button" onClick={() => importRef.current?.click()}>استرجاع</button>
           <input
             ref={importRef}
             className="hidden-input"
@@ -268,333 +289,110 @@ function App() {
         </div>
       </header>
 
-      {feedback ? <div className="feedback-banner">{feedback}</div> : null}
+      {feedback ? (
+        <div className="feedback-banner" onClick={() => setFeedback('')}>{feedback}</div>
+      ) : null}
 
       <section className="stats-grid">
         <article className="stat-card">
           <span>الحوالات</span>
-          <strong>{filteredTransfers.length}</strong>
+          <strong>{transferSummary.total}</strong>
         </article>
         <article className="stat-card">
+          <span>عند الموظف</span>
+          <strong className="text-blue">{transferSummary.withEmployeeCount}</strong>
+        </article>
+        <article className="stat-card stat-card--warning">
           <span>مشاكل</span>
-          <strong>{transferSummary.issueCount}</strong>
+          <strong>{issueCount}</strong>
         </article>
         <article className="stat-card">
-          <span>جاهز للمحاسب</span>
-          <strong>{transferSummary.readyForAccountant.length}</strong>
+          <span>بانتظار التسوية</span>
+          <strong className="text-orange">{transferSummary.unsettledCount}</strong>
+        </article>
+        <article className="stat-card stat-card--highlight">
+          <span>مستحق للزبائن الآن</span>
+          <strong>{new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(officeSummary.officeCustomerLiability)}</strong>
         </article>
         <article className="stat-card">
-          <span>مدفوعة</span>
-          <strong>{transferSummary.paidCount}</strong>
+          <span>عند المحاسب الآن</span>
+          <strong className="text-blue">{new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(officeSummary.accountantCashOnHand)}</strong>
+        </article>
+        <article className="stat-card">
+          <span>ربح قابل للـ Claim</span>
+          <strong className="text-green">{new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(officeSummary.accountantClaimableProfit)}</strong>
         </article>
       </section>
 
-      <section className="workspace-grid">
-        <section className="panel">
-          <div className="panel-head compact">
-            <h2>الزبائن</h2>
-          </div>
+      <TabNav active={activeTab} onChange={changeTab} issueCount={issueCount} />
 
-          <form className="inline-form" onSubmit={handleAddCustomer}>
-            <input
-              value={customerDraft.name}
-              onChange={(event) =>
-                setCustomerDraft((current) => ({ ...current, name: event.target.value }))
-              }
-              placeholder="اسم الزبون"
-            />
-            <input
-              inputMode="decimal"
-              value={customerDraft.openingBalance}
-              onChange={(event) =>
-                setCustomerDraft((current) => ({
-                  ...current,
-                  openingBalance: event.target.value,
-                }))
-              }
-              placeholder="رصيد بداية"
-            />
-            <input
-              inputMode="decimal"
-              value={customerDraft.settledTotal}
-              onChange={(event) =>
-                setCustomerDraft((current) => ({
-                  ...current,
-                  settledTotal: event.target.value,
-                }))
-              }
-              placeholder="تسليمات"
-            />
-            <button type="submit">إضافة زبون</button>
-          </form>
+      {activeTab === 'transfers' ? (
+        <TransfersTab
+          filteredTransfers={filteredTransfers}
+          allTransfers={transfers}
+          customers={customers}
+          customersById={customersById}
+          transferDraft={transferDraft}
+          setTransferDraft={setTransferDraft}
+          onAddTransfer={handleAddTransfer}
+          onPatchTransfer={patchTransfer}
+          onDeleteTransfer={deleteTransfer}
+          searchTerm={searchTerm}
+          setSearchTerm={setSearchTerm}
+          statusFilter={statusFilter}
+          setStatusFilter={setStatusFilter}
+          viewMode={viewMode}
+          setViewMode={setViewMode}
+          customerFilter={customerFilter}
+          setCustomerFilter={setCustomerFilter}
+          sortMode={sortMode}
+          setSortMode={setSortMode}
+          onResetFilters={resetFilters}
+          transferSummary={transferSummary}
+          onFeedback={setFeedback}
+        />
+      ) : null}
 
-          <div className="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>الزبون</th>
-                  <th>رصيد بداية</th>
-                  <th>منفذ</th>
-                  <th>قيد التنفيذ</th>
-                  <th>تسليمات</th>
-                  <th>الرصيد الحالي</th>
-                </tr>
-              </thead>
-              <tbody>
-                {customerSummary.map((customer) => (
-                  <tr key={customer.id}>
-                    <td>{customer.name}</td>
-                    <td>
-                      <input
-                        className="table-input"
-                        inputMode="decimal"
-                        value={customer.openingBalance}
-                        onChange={(event) =>
-                          patchCustomer(customer.id, (item) =>
-                            updateCustomerField(item, 'openingBalance', event.target.value),
-                          )
-                        }
-                      />
-                    </td>
-                    <td>{money(customer.deliveredTotal)}</td>
-                    <td>{money(customer.pendingTotal)}</td>
-                    <td>
-                      <input
-                        className="table-input"
-                        inputMode="decimal"
-                        value={customer.settledTotal}
-                        onChange={(event) =>
-                          patchCustomer(customer.id, (item) =>
-                            updateCustomerField(item, 'settledTotal', event.target.value),
-                          )
-                        }
-                      />
-                    </td>
-                    <td>{money(customer.currentBalance)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
+      {activeTab === 'customers' ? (
+        <CustomersTab
+          customers={customers}
+          customerSummary={customerSummary}
+          customerDraft={customerDraft}
+          setCustomerDraft={setCustomerDraft}
+          onAddCustomer={handleAddCustomer}
+          transfers={transfers}
+          onPatchTransfer={patchTransfer}
+          onFeedback={setFeedback}
+          ledgerEntries={ledgerEntries}
+        />
+      ) : null}
 
-        <section className="panel">
-          <div className="panel-head compact">
-            <h2>إضافة حوالة</h2>
-          </div>
+      {activeTab === 'settlements' ? (
+        <SettlementsTab
+          customers={customers}
+          transfers={transfers}
+          onSettle={handleSettle}
+        />
+      ) : null}
 
-          <form className="inline-form" onSubmit={handleAddTransfer}>
-            <select
-              value={transferDraft.customerId}
-              onChange={(event) =>
-                setTransferDraft((current) => ({
-                  ...current,
-                  customerId: event.target.value,
-                }))
-              }
-            >
-              <option value="">اختر الزبون</option>
-              {customers
-                .slice()
-                .sort((a, b) => a.name.localeCompare(b.name, 'ar'))
-                .map((customer) => (
-                  <option key={customer.id} value={customer.id}>
-                    {customer.name}
-                  </option>
-                ))}
-            </select>
-            <input
-              value={transferDraft.senderName}
-              onChange={(event) =>
-                setTransferDraft((current) => ({ ...current, senderName: event.target.value }))
-              }
-              placeholder="اسم المرسل"
-            />
-            <input
-              value={transferDraft.reference}
-              onChange={(event) =>
-                setTransferDraft((current) => ({ ...current, reference: event.target.value }))
-              }
-              placeholder="رقم الحوالة"
-            />
-            <button type="submit">إضافة حوالة</button>
-          </form>
+      {activeTab === 'closing' ? (
+        <DailyClosingTab
+          transfers={transfers}
+          customerSummary={customerSummary}
+          officeSummary={officeSummary}
+          claimHistory={claimHistory}
+          onClaimProfit={handleClaimProfit}
+        />
+      ) : null}
 
-          <div className="toolbar">
-            <input
-              value={searchTerm}
-              onChange={(event) => setSearchTerm(event.target.value)}
-              placeholder="بحث"
-            />
-            <select value={customerFilter} onChange={(event) => setCustomerFilter(event.target.value)}>
-              <option value={FILTER_ALL}>كل الزبائن</option>
-              {customers.map((customer) => (
-                <option key={customer.id} value={customer.id}>
-                  {customer.name}
-                </option>
-              ))}
-            </select>
-            <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
-              <option value={FILTER_ALL}>كل الحالات</option>
-              {statusOrder.map((statusKey) => (
-                <option key={statusKey} value={statusKey}>
-                  {statusMeta[statusKey].label}
-                </option>
-              ))}
-            </select>
-            <select value={paymentFilter} onChange={(event) => setPaymentFilter(event.target.value)}>
-              <option value={FILTER_ALL}>كل الدفع</option>
-              <option value="pending">بانتظار</option>
-              <option value="paid">تم الدفع</option>
-            </select>
-            <select value={sortMode} onChange={(event) => setSortMode(event.target.value)}>
-              <option value="latest">الأحدث</option>
-              <option value="oldest">الأقدم</option>
-              <option value="customer">الزبون</option>
-              <option value="sender">المرسل</option>
-            </select>
-            <button className="ghost-button ghost-button--muted" onClick={resetFilters}>
-              تصفير
-            </button>
-          </div>
-        </section>
-      </section>
-
-      <section className="panel">
-        <div className="panel-head">
-          <h2>الحوالات</h2>
-          <div className="totals-line">
-            <span>{money(transferSummary.totalSystem)}</span>
-            <span>{money(transferSummary.totalCustomer)}</span>
-            <span>{money(transferSummary.totalMargin)}</span>
-          </div>
-        </div>
-
-        <div className="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>الرقم</th>
-                <th>الزبون</th>
-                <th>المرسل</th>
-                <th>وقت</th>
-                <th>الحالة</th>
-                <th>المشكلة</th>
-                <th>السيستم</th>
-                <th>للزبون</th>
-                <th>الفرق</th>
-                <th>ملاحظة</th>
-                <th>الدفع</th>
-                <th>حذف</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredTransfers.length === 0 ? (
-                <tr>
-                  <td colSpan="12" className="empty-table">
-                    لا توجد نتائج
-                  </td>
-                </tr>
-              ) : (
-                filteredTransfers.map((item) => (
-                  <tr key={item.id}>
-                    <td>{item.reference}</td>
-                    <td>{customersById.get(item.customerId)?.name || item.receiverName}</td>
-                    <td>{item.senderName}</td>
-                    <td>{formatDate(item.createdAt)}</td>
-                    <td>
-                      <select
-                        className="table-select"
-                        value={item.status}
-                        onChange={(event) => patchTransfer(item.id, (row) => transitionTransfer(row, event.target.value))}
-                      >
-                        {statusOrder.map((statusKey) => (
-                          <option key={statusKey} value={statusKey}>
-                            {statusMeta[statusKey].label}
-                          </option>
-                        ))}
-                      </select>
-                    </td>
-                    <td>
-                      <select
-                        className="table-select"
-                        value={item.issueCode || ''}
-                        disabled={item.status !== 'issue'}
-                        onChange={(event) =>
-                          patchTransfer(item.id, (row) =>
-                            updateTransferField(row, 'issueCode', event.target.value),
-                          )
-                        }
-                      >
-                        <option value="">-</option>
-                        {issueCatalog.map((issue) => (
-                          <option key={issue.code} value={issue.code}>
-                            {issue.label}
-                          </option>
-                        ))}
-                      </select>
-                    </td>
-                    <td>
-                      <input
-                        className="table-input"
-                        inputMode="decimal"
-                        value={item.systemAmount ?? ''}
-                        onChange={(event) =>
-                          patchTransfer(item.id, (row) =>
-                            updateAmount(row, 'systemAmount', event.target.value),
-                          )
-                        }
-                      />
-                    </td>
-                    <td>
-                      <input
-                        className="table-input"
-                        inputMode="decimal"
-                        value={item.customerAmount ?? ''}
-                        onChange={(event) =>
-                          patchTransfer(item.id, (row) =>
-                            updateAmount(row, 'customerAmount', event.target.value),
-                          )
-                        }
-                      />
-                    </td>
-                    <td>{item.margin === null ? '-' : money(item.margin)}</td>
-                    <td>
-                      <input
-                        className="table-input"
-                        value={item.note || ''}
-                        onChange={(event) =>
-                          patchTransfer(item.id, (row) =>
-                            updateTransferField(row, 'note', event.target.value),
-                          )
-                        }
-                      />
-                    </td>
-                    <td>
-                      <button className="ghost-button" onClick={() => patchTransfer(item.id, togglePayment)}>
-                        {item.paymentStatus === 'paid' ? 'تم' : 'انتظار'}
-                      </button>
-                    </td>
-                    <td>
-                      <button
-                        className="danger-button"
-                        onClick={() =>
-                          setState((current) => ({
-                            ...current,
-                            transfers: current.transfers.filter((row) => row.id !== item.id),
-                          }))
-                        }
-                      >
-                        حذف
-                      </button>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </section>
+      {activeTab === 'issues' ? (
+        <IssuesTab
+          transfers={transfers}
+          customersById={customersById}
+          onPatchTransfer={patchTransfer}
+          onFeedback={setFeedback}
+        />
+      ) : null}
     </div>
   )
 }

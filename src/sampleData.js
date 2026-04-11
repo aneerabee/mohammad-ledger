@@ -1,13 +1,9 @@
 export const statusMeta = {
-  new: { label: 'جديدة', color: '#64748b' },
-  sent_to_operator: { label: 'مرسلة', color: '#2563eb' },
-  under_review: { label: 'مراجعة', color: '#8b5cf6' },
+  received: { label: 'وصلت', color: '#64748b' },
+  with_employee: { label: 'عند الموظف', color: '#2563eb' },
+  review_hold: { label: 'مراجعة لاحقة', color: '#a16207' },
+  picked_up: { label: 'تم السحب', color: '#15803d' },
   issue: { label: 'مشكلة', color: '#dc2626' },
-  approved: { label: 'مقبولة', color: '#0f766e' },
-  customer_confirmed: { label: 'مؤكدة', color: '#15803d' },
-  sent_to_accountant: { label: 'للمحاسب', color: '#b45309' },
-  paid: { label: 'مدفوعة', color: '#166534' },
-  closed: { label: 'مغلقة', color: '#1f2937' },
 }
 
 export const seedCustomers = []
