@@ -12,16 +12,37 @@ export const statusOrder = [
   'closed',
 ]
 
-export function createEmptyDraft() {
+export function createEmptyTransferDraft() {
   return {
+    customerId: '',
     senderName: '',
-    receiverName: '',
     reference: '',
+  }
+}
+
+export function createEmptyCustomerDraft() {
+  return {
+    name: '',
+    openingBalance: '',
+    settledTotal: '',
   }
 }
 
 export function normalizeReference(reference) {
   return reference.trim().toUpperCase()
+}
+
+export function normalizeName(name) {
+  return name.trim().replace(/\s+/g, ' ')
+}
+
+export function parseMoney(value) {
+  if (value === '' || value === null || value === undefined) {
+    return 0
+  }
+
+  const parsed = Number(value)
+  return Number.isNaN(parsed) ? 0 : parsed
 }
 
 export function computeMargin(systemAmount, customerAmount) {
@@ -32,21 +53,19 @@ export function computeMargin(systemAmount, customerAmount) {
   return systemAmount - customerAmount
 }
 
-export function buildTransferFromDraft(draft, existingTransfers = []) {
-  const senderName = draft.senderName.trim()
-  const receiverName = draft.receiverName.trim()
-  const reference = normalizeReference(draft.reference)
+export function buildCustomerFromDraft(draft, existingCustomers = []) {
+  const name = normalizeName(draft.name)
 
-  if (!senderName || !receiverName || !reference) {
-    return { ok: false, error: 'يجب إدخال اسم المرسل واسم المستلم ورقم الحوالة.' }
+  if (!name) {
+    return { ok: false, error: 'يجب إدخال اسم الزبون.' }
   }
 
-  const duplicate = existingTransfers.some(
-    (item) => normalizeReference(item.reference) === reference,
+  const duplicate = existingCustomers.some(
+    (item) => normalizeName(item.name).toLowerCase() === name.toLowerCase(),
   )
 
   if (duplicate) {
-    return { ok: false, error: 'رقم الحوالة موجود مسبقًا، راجع السجل بدل تكرارها.' }
+    return { ok: false, error: 'الزبون موجود مسبقًا.' }
   }
 
   const now = new Date()
@@ -55,16 +74,54 @@ export function buildTransferFromDraft(draft, existingTransfers = []) {
     ok: true,
     value: {
       id: now.getTime(),
-      reference,
+      name,
+      openingBalance: parseMoney(draft.openingBalance),
+      settledTotal: parseMoney(draft.settledTotal),
+      createdAt: now.toISOString(),
+      updatedAt: now.toISOString(),
+    },
+  }
+}
+
+export function buildTransferFromDraft(draft, existingTransfers = [], customers = []) {
+  const senderName = normalizeName(draft.senderName)
+  const reference = normalizeReference(draft.reference)
+  const customerId = Number(draft.customerId)
+  const customer = customers.find((item) => item.id === customerId)
+
+  if (!customer) {
+    return { ok: false, error: 'يجب اختيار الزبون من القائمة.' }
+  }
+
+  if (!senderName || !reference) {
+    return { ok: false, error: 'يجب إدخال اسم المرسل ورقم الحوالة.' }
+  }
+
+  const duplicate = existingTransfers.some(
+    (item) => normalizeReference(item.reference) === reference,
+  )
+
+  if (duplicate) {
+    return { ok: false, error: 'رقم الحوالة موجود مسبقًا.' }
+  }
+
+  const now = new Date()
+
+  return {
+    ok: true,
+    value: {
+      id: now.getTime(),
+      customerId,
       senderName,
-      receiverName,
+      receiverName: customer.name,
+      reference,
       status: 'new',
       issueCode: '',
       systemAmount: null,
       customerAmount: null,
       margin: null,
       paymentStatus: 'pending',
-      note: 'تمت إضافتها يدويًا بانتظار إرسالها للموظف.',
+      note: '',
       createdAt: now.toISOString(),
       updatedAt: now.toISOString(),
     },
@@ -72,15 +129,13 @@ export function buildTransferFromDraft(draft, existingTransfers = []) {
 }
 
 export function transitionTransfer(item, nextStatus) {
-  const now = new Date().toISOString()
   const nextItem = {
     ...item,
     status: nextStatus,
-    updatedAt: now,
+    updatedAt: new Date().toISOString(),
   }
 
   if (nextStatus === 'issue') {
-    nextItem.note = item.note || 'تحتاج متابعة لأن الموظف أشار إلى وجود مشكلة.'
     nextItem.paymentStatus = 'pending'
   }
 
@@ -141,15 +196,26 @@ export function updateTransferField(item, field, value) {
   }
 }
 
-export function filterTransfers(transfers, filters) {
+export function updateCustomerField(item, field, value) {
+  const moneyField = field === 'openingBalance' || field === 'settledTotal'
+
+  return {
+    ...item,
+    [field]: moneyField ? parseMoney(value) : value,
+    updatedAt: new Date().toISOString(),
+  }
+}
+
+export function filterTransfers(transfers, filters, customersById = new Map()) {
   const normalizedSearch = filters.searchTerm.trim().toLowerCase()
 
   return transfers.filter((item) => {
+    const customerName = (customersById.get(item.customerId)?.name || item.receiverName || '').toLowerCase()
     const matchesSearch =
       normalizedSearch === '' ||
       item.reference.toLowerCase().includes(normalizedSearch) ||
       item.senderName.toLowerCase().includes(normalizedSearch) ||
-      item.receiverName.toLowerCase().includes(normalizedSearch) ||
+      customerName.includes(normalizedSearch) ||
       (item.note || '').toLowerCase().includes(normalizedSearch)
 
     const matchesStatus =
@@ -158,11 +224,14 @@ export function filterTransfers(transfers, filters) {
     const matchesPayment =
       filters.paymentFilter === FILTER_ALL || item.paymentStatus === filters.paymentFilter
 
-    return matchesSearch && matchesStatus && matchesPayment
+    const matchesCustomer =
+      filters.customerFilter === FILTER_ALL || item.customerId === Number(filters.customerFilter)
+
+    return matchesSearch && matchesStatus && matchesPayment && matchesCustomer
   })
 }
 
-export function sortTransfers(transfers, sortMode) {
+export function sortTransfers(transfers, sortMode, customersById = new Map()) {
   const sorted = [...transfers]
 
   switch (sortMode) {
@@ -171,8 +240,13 @@ export function sortTransfers(transfers, sortMode) {
         (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
       )
       return sorted
-    case 'receiver':
-      sorted.sort((a, b) => a.receiverName.localeCompare(b.receiverName, 'ar'))
+    case 'customer':
+      sorted.sort((a, b) =>
+        (customersById.get(a.customerId)?.name || a.receiverName || '').localeCompare(
+          customersById.get(b.customerId)?.name || b.receiverName || '',
+          'ar',
+        ),
+      )
       return sorted
     case 'sender':
       sorted.sort((a, b) => a.senderName.localeCompare(b.senderName, 'ar'))
@@ -203,7 +277,7 @@ export function summarizeTransfers(transfers) {
   const readyForAccountant = transfers.filter(
     (item) => item.status === 'customer_confirmed' || item.status === 'sent_to_accountant',
   )
-  const paidToday = transfers.filter((item) => item.paymentStatus === 'paid')
+  const paidCount = transfers.filter((item) => item.paymentStatus === 'paid').length
 
   return {
     totalSystem,
@@ -211,31 +285,73 @@ export function summarizeTransfers(transfers) {
     totalMargin,
     issueCount,
     readyForAccountant,
-    paidToday,
+    paidCount,
   }
 }
 
-export function serializeTransfers(transfers) {
-  return JSON.stringify(transfers, null, 2)
+export function summarizeCustomers(customers, transfers) {
+  return customers
+    .map((customer) => {
+      const ownTransfers = transfers.filter((item) => item.customerId === customer.id)
+      const deliveredTotal = ownTransfers.reduce(
+        (sum, item) =>
+          sum +
+          (item.paymentStatus === 'paid' && typeof item.customerAmount === 'number'
+            ? item.customerAmount
+            : 0),
+        0,
+      )
+      const pendingTotal = ownTransfers.reduce(
+        (sum, item) =>
+          sum +
+          (item.paymentStatus !== 'paid' && typeof item.customerAmount === 'number'
+            ? item.customerAmount
+            : 0),
+        0,
+      )
+
+      return {
+        ...customer,
+        transferCount: ownTransfers.length,
+        deliveredTotal,
+        pendingTotal,
+        currentBalance: customer.openingBalance + deliveredTotal - customer.settledTotal,
+      }
+    })
+    .sort((a, b) => a.name.localeCompare(b.name, 'ar'))
 }
 
-export function parseTransfersBackup(text) {
+export function serializeAppState(state) {
+  return JSON.stringify(state, null, 2)
+}
+
+export function parseAppStateBackup(text) {
   const parsed = JSON.parse(text)
 
-  if (!Array.isArray(parsed)) {
+  if (!parsed || !Array.isArray(parsed.customers) || !Array.isArray(parsed.transfers)) {
     throw new Error('النسخة الاحتياطية غير صالحة.')
   }
 
-  return parsed.map((item) => ({
-    issueCode: '',
-    note: '',
-    paymentStatus: 'pending',
-    systemAmount: null,
-    customerAmount: null,
-    margin: null,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    ...item,
-    reference: normalizeReference(item.reference || ''),
-  }))
+  return {
+    customers: parsed.customers.map((item) => ({
+      openingBalance: 0,
+      settledTotal: 0,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      ...item,
+      name: normalizeName(item.name || ''),
+    })),
+    transfers: parsed.transfers.map((item) => ({
+      issueCode: '',
+      note: '',
+      paymentStatus: 'pending',
+      systemAmount: null,
+      customerAmount: null,
+      margin: null,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      ...item,
+      reference: normalizeReference(item.reference || ''),
+    })),
+  }
 }
