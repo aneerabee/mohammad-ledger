@@ -454,4 +454,196 @@ describe('transferLogic', () => {
     expect(groups[0].customerTotal).toBe(135)
     expect(groups[0].systemTotal).toBe(150)
   })
+
+  /*
+   * Full-day simulation: 2 customers, 8 transfers across all statuses,
+   * settlements, profit claim — verifies every number across all summaries.
+   */
+  it('full-day scenario: all summaries are cross-consistent', () => {
+    const custs = [
+      { id: 201, name: 'عمر', openingBalance: 1000, settledTotal: 200,
+        createdAt: '2026-04-12T06:00:00.000Z', updatedAt: '2026-04-12T06:00:00.000Z' },
+      { id: 202, name: 'سارة', openingBalance: 0, settledTotal: 0,
+        createdAt: '2026-04-12T06:00:00.000Z', updatedAt: '2026-04-12T06:00:00.000Z' },
+    ]
+    const seeds = buildSeedLedgerEntries(custs)
+
+    // 8 transfers across all statuses
+    const base = { issueCode: '', note: '', transferAmount: null, settled: false, settledAt: null,
+      sentAt: null, pickedUpAt: null, issueAt: null, reviewHoldAt: null, resetAt: null }
+
+    const txs = [
+      // عمر — 5 حوالات
+      { ...base, id: 301, customerId: 201, reference: 'T-301', senderName: 'أ', receiverName: 'عمر',
+        status: 'received', transferAmount: 500, customerAmount: 480, systemAmount: null, margin: null,
+        createdAt: '2026-04-12T08:00:00.000Z', updatedAt: '2026-04-12T08:00:00.000Z' },
+      { ...base, id: 302, customerId: 201, reference: 'T-302', senderName: 'ب', receiverName: 'عمر',
+        status: 'with_employee', transferAmount: 600, customerAmount: 570, systemAmount: null, margin: null,
+        sentAt: '2026-04-12T08:30:00.000Z',
+        createdAt: '2026-04-12T08:10:00.000Z', updatedAt: '2026-04-12T08:30:00.000Z' },
+      { ...base, id: 303, customerId: 201, reference: 'T-303', senderName: 'ج', receiverName: 'عمر',
+        status: 'issue', transferAmount: 400, customerAmount: 380, systemAmount: null, margin: null,
+        issueCode: 'name_mismatch', issueAt: '2026-04-12T09:00:00.000Z',
+        createdAt: '2026-04-12T08:20:00.000Z', updatedAt: '2026-04-12T09:00:00.000Z' },
+      { ...base, id: 304, customerId: 201, reference: 'T-304', senderName: 'د', receiverName: 'عمر',
+        status: 'picked_up', transferAmount: 700, customerAmount: 660, systemAmount: 680, margin: 20,
+        pickedUpAt: '2026-04-12T10:00:00.000Z',
+        createdAt: '2026-04-12T08:30:00.000Z', updatedAt: '2026-04-12T10:00:00.000Z' },
+      { ...base, id: 305, customerId: 201, reference: 'T-305', senderName: 'ه', receiverName: 'عمر',
+        status: 'picked_up', transferAmount: 300, customerAmount: 280, systemAmount: 290, margin: 10,
+        settled: true, settledAt: '2026-04-12T11:00:00.000Z',
+        pickedUpAt: '2026-04-12T09:30:00.000Z',
+        createdAt: '2026-04-12T08:40:00.000Z', updatedAt: '2026-04-12T11:00:00.000Z' },
+
+      // سارة — 3 حوالات
+      { ...base, id: 306, customerId: 202, reference: 'T-306', senderName: 'و', receiverName: 'سارة',
+        status: 'review_hold', transferAmount: 250, customerAmount: 230, systemAmount: null, margin: null,
+        reviewHoldAt: '2026-04-12T09:15:00.000Z',
+        createdAt: '2026-04-12T09:00:00.000Z', updatedAt: '2026-04-12T09:15:00.000Z' },
+      { ...base, id: 307, customerId: 202, reference: 'T-307', senderName: 'ز', receiverName: 'سارة',
+        status: 'picked_up', transferAmount: 450, customerAmount: 420, systemAmount: 435, margin: 15,
+        pickedUpAt: '2026-04-12T10:30:00.000Z',
+        createdAt: '2026-04-12T09:10:00.000Z', updatedAt: '2026-04-12T10:30:00.000Z' },
+      { ...base, id: 308, customerId: 202, reference: 'T-308', senderName: 'ح', receiverName: 'سارة',
+        status: 'picked_up', transferAmount: 350, customerAmount: 330, systemAmount: 340, margin: 10,
+        settled: true, settledAt: '2026-04-12T12:00:00.000Z',
+        pickedUpAt: '2026-04-12T11:00:00.000Z',
+        createdAt: '2026-04-12T09:20:00.000Z', updatedAt: '2026-04-12T12:00:00.000Z' },
+    ]
+
+    // ── 1. Transfer summary (from summarizeTransfers) ──
+    const tSummary = summarizeTransfers(txs)
+    expect(tSummary.total).toBe(8)
+    expect(tSummary.receivedCount).toBe(1)          // T-301
+    expect(tSummary.withEmployeeCount).toBe(1)      // T-302
+    expect(tSummary.issueCount).toBe(1)             // T-303
+    expect(tSummary.pickedUpCount).toBe(4)          // T-304,305,307,308
+    expect(tSummary.settledCount).toBe(2)           // T-305,308
+    expect(tSummary.unsettledCount).toBe(2)         // T-304,307
+
+    // Totals from picked_up only
+    expect(tSummary.totalSystem).toBe(680 + 290 + 435 + 340)   // 1745
+    expect(tSummary.totalCustomer).toBe(660 + 280 + 420 + 330) // 1690
+    expect(tSummary.totalMargin).toBe(20 + 10 + 15 + 10)       // 55
+
+    // Accountant pending (unsettled picked_up system amounts)
+    expect(tSummary.accountantPending).toBe(680 + 435)          // 1115
+    expect(tSummary.customerOwed).toBe(660 + 420)               // 1080
+
+    // ── 2. Customer summary (from summarizeCustomers) ──
+    const cSummary = summarizeCustomers(custs, txs, seeds)
+
+    const omar = cSummary.find((c) => c.id === 201)
+    expect(omar.transferCount).toBe(5)
+    expect(omar.receivedCount).toBe(1)
+    expect(omar.withEmployeeCount).toBe(1)
+    expect(omar.issueCount).toBe(1)
+    expect(omar.pickedUpCount).toBe(2)              // T-304, T-305
+    expect(omar.settledCount).toBe(1)               // T-305
+    expect(omar.unsettledCount).toBe(1)             // T-304
+    expect(omar.settledAmount).toBe(280)            // T-305 customerAmount
+    expect(omar.unsettledAmount).toBe(660)          // T-304 customerAmount
+    expect(omar.totalMargin).toBe(30)               // 20+10
+
+    // Omar ledger: opening 1000, legacy -200, due T-304 +660, due T-305 +280, settlement T-305 -280
+    // = 1000 - 200 + 660 + 280 - 280 = 1460
+    expect(omar.currentBalance).toBe(1460)
+    expect(omar.ledgerCredits).toBe(1000 + 660 + 280)  // 1940
+    expect(omar.ledgerDebits).toBe(200 + 280)           // 480
+
+    const sara = cSummary.find((c) => c.id === 202)
+    expect(sara.transferCount).toBe(3)
+    expect(sara.receivedCount).toBe(0)
+    expect(sara.reviewHoldCount).toBe(1)            // T-306
+    expect(sara.pickedUpCount).toBe(2)              // T-307, T-308
+    expect(sara.settledCount).toBe(1)               // T-308
+    expect(sara.unsettledCount).toBe(1)             // T-307
+    expect(sara.settledAmount).toBe(330)            // T-308
+    expect(sara.unsettledAmount).toBe(420)          // T-307
+
+    // Sara ledger: no opening, due T-307 +420, due T-308 +330, settlement T-308 -330
+    // = 420 + 330 - 330 = 420
+    expect(sara.currentBalance).toBe(420)
+    expect(sara.ledgerCredits).toBe(420 + 330)      // 750
+    expect(sara.ledgerDebits).toBe(330)
+
+    // ── 3. Office ledger (from summarizeOfficeLedger) ──
+    const office = summarizeOfficeLedger(custs, txs, seeds)
+
+    // officeCustomerLiability = max(1460,0) + max(420,0)
+    expect(office.officeCustomerLiability).toBe(1460 + 420)  // 1880
+
+    expect(office.accountantSystemReceived).toBe(1745)       // all picked_up systemAmounts
+    expect(office.accountantCustomerPaid).toBe(280 + 330)    // settled customerAmounts = 610
+    expect(office.accountantOutstandingCustomer).toBe(660 + 420) // unsettled customerAmounts = 1080
+
+    // cashOnHand = received - paid - outstanding - claimed
+    // = 1745 - 610 - 1080 - 0 = 55
+    expect(office.accountantCashOnHand).toBe(55)
+
+    // grossMargin = 20+10+15+10 = 55
+    expect(office.accountantGrossMargin).toBe(55)
+    // realizedMargin (settled only) = 10+10 = 20
+    expect(office.accountantRealizedMargin).toBe(20)
+    // claimable = realized - claimed = 20 - 0 = 20
+    expect(office.accountantClaimableProfit).toBe(20)
+    // pending = gross - realized = 55 - 20 = 35
+    expect(office.accountantPendingProfit).toBe(35)
+
+    // ── 4. Cross-consistency checks ──
+
+    // cashOnHand must equal grossMargin when no claims made
+    expect(office.accountantCashOnHand).toBe(office.accountantGrossMargin)
+
+    // paid + outstanding + claimedProfit + cashOnHand must equal systemReceived
+    expect(
+      office.accountantCustomerPaid +
+      office.accountantOutstandingCustomer +
+      office.accountantClaimedProfit +
+      office.accountantCashOnHand
+    ).toBe(office.accountantSystemReceived)
+
+    // realizedMargin + pendingProfit must equal grossMargin
+    expect(office.accountantRealizedMargin + office.accountantPendingProfit).toBe(office.accountantGrossMargin)
+
+    // ── 5. After profit claim ──
+    const claim = createProfitClaimEntry(20)
+    const officeAfterClaim = summarizeOfficeLedger(custs, txs, [...seeds, claim])
+
+    expect(officeAfterClaim.accountantClaimedProfit).toBe(20)
+    expect(officeAfterClaim.accountantClaimableProfit).toBe(0)
+    // cashOnHand = 1745 - 610 - 1080 - 20 = 35
+    expect(officeAfterClaim.accountantCashOnHand).toBe(35)
+
+    // Invariant still holds after claim
+    expect(
+      officeAfterClaim.accountantCustomerPaid +
+      officeAfterClaim.accountantOutstandingCustomer +
+      officeAfterClaim.accountantClaimedProfit +
+      officeAfterClaim.accountantCashOnHand
+    ).toBe(officeAfterClaim.accountantSystemReceived)
+
+    // ── 6. Settlement flow ──
+    // Settle T-304 (omar unsettled) and T-307 (sara unsettled)
+    const afterSettle = settleTransfers(txs, [304, 307])
+    const t304 = afterSettle.find((t) => t.id === 304)
+    const t307 = afterSettle.find((t) => t.id === 307)
+    expect(t304.settled).toBe(true)
+    expect(t307.settled).toBe(true)
+
+    const officeAfterSettle = summarizeOfficeLedger(custs, afterSettle, seeds)
+    expect(officeAfterSettle.accountantCustomerPaid).toBe(280 + 330 + 660 + 420) // 1690
+    expect(officeAfterSettle.accountantOutstandingCustomer).toBe(0)
+    expect(officeAfterSettle.accountantRealizedMargin).toBe(55)  // all margins realized
+    expect(officeAfterSettle.accountantClaimableProfit).toBe(55) // all claimable
+    expect(officeAfterSettle.accountantCashOnHand).toBe(55)      // = grossMargin
+
+    // Invariant after full settlement
+    expect(
+      officeAfterSettle.accountantCustomerPaid +
+      officeAfterSettle.accountantOutstandingCustomer +
+      officeAfterSettle.accountantClaimedProfit +
+      officeAfterSettle.accountantCashOnHand
+    ).toBe(officeAfterSettle.accountantSystemReceived)
+  })
 })
