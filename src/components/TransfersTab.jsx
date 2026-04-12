@@ -204,6 +204,7 @@ export default function TransfersTab({
                   onTransition={handleTransition}
                   editingId={editingId}
                   setEditingId={setEditingId}
+                  onFeedback={onFeedback}
                 />
               </div>
             )
@@ -374,7 +375,7 @@ function StatusActions({ item, onTransition }) {
 
 /* ── Transfer table with edit mode ── */
 
-function TransferTable({ items, customers, customersById, onPatchTransfer, onDeleteTransfer, onTransition, editingId, setEditingId }) {
+function TransferTable({ items, customers, customersById, onPatchTransfer, onDeleteTransfer, onTransition, editingId, setEditingId, onFeedback }) {
   return (
     <div className="table-wrap">
       <table>
@@ -461,9 +462,13 @@ function TransferTable({ items, customers, customersById, onPatchTransfer, onDel
                     <select
                       className="table-select import-status-select"
                       value={item.status}
-                      onChange={(e) =>
-                        onPatchTransfer(item.id, (r) => transitionTransfer(r, e.target.value))
-                      }
+                      onChange={(e) => {
+                        const next = e.target.value
+                        if (next === 'received' && !window.confirm('إعادة الحوالة لـ "جديدة" ستمسح كل المبالغ والتواريخ. هل أنت متأكد؟')) return
+                        const check = validateTransition(item, next)
+                        if (!check.ok) { onFeedback(check.error); return }
+                        onPatchTransfer(item.id, (r) => transitionTransfer(r, next))
+                      }}
                     >
                       {statusOrder.map((s) => (
                         <option key={s} value={s}>{statusMeta[s].label}</option>

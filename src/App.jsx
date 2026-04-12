@@ -16,7 +16,7 @@ import {
   summarizeCustomers,
   summarizeTransfers,
 } from './lib/transferLogic'
-import { buildOpeningBalanceEntry, createProfitClaimEntry, summarizeOfficeLedger } from './lib/ledger'
+import { buildOpeningBalanceEntry, buildLegacySettlementEntry, createProfitClaimEntry, summarizeOfficeLedger } from './lib/ledger'
 import { getPersistenceMode, loadPersistedState, savePersistedState } from './lib/persistence'
 import TabNav from './components/TabNav'
 import TransfersTab from './components/TransfersTab'
@@ -88,7 +88,7 @@ function App() {
   const [dateTo, setDateTo] = useState('')
   const [storageMode, setStorageMode] = useState(getPersistenceMode())
   const [isHydrated, setIsHydrated] = useState(false)
-  const [_loadFailed, setLoadFailed] = useState(false)
+  const [loadFailed, setLoadFailed] = useState(false)
   const [state, setState] = useState(FALLBACK_STATE)
 
   const { customers, transfers, ledgerEntries, claimHistory } = state
@@ -216,10 +216,12 @@ function App() {
     const result = buildCustomerFromDraft(customerDraft, customers)
     if (!result.ok) { setFeedback(result.error); return }
     const openingEntry = buildOpeningBalanceEntry(result.value)
+    const legacyEntry = buildLegacySettlementEntry(result.value)
+    const newEntries = [openingEntry, legacyEntry].filter(Boolean)
     setState((s) => ({
       ...s,
       customers: [...s.customers, result.value],
-      ledgerEntries: openingEntry ? [...s.ledgerEntries, openingEntry] : s.ledgerEntries,
+      ledgerEntries: newEntries.length > 0 ? [...s.ledgerEntries, ...newEntries] : s.ledgerEntries,
     }))
     setCustomerDraft(createEmptyCustomerDraft())
     setFeedback('تمت إضافة الزبون.')
@@ -302,6 +304,10 @@ function App() {
           />
         </div>
       </header>
+
+      {loadFailed ? (
+        <div className="error-banner">تعذر تحميل البيانات — التغييرات لن تُحفظ. أعد تحميل الصفحة.</div>
+      ) : null}
 
       {feedback ? (
         <div className="feedback-banner" onClick={() => setFeedback('')}>{feedback}</div>
