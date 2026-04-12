@@ -134,49 +134,38 @@ export default function TransfersTab({
           <button type="submit">إضافة حوالة</button>
         </form>
 
-        <div className="toolbar">
+        <div className="filter-bar">
           <input
+            className="search-input"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="بحث بالرقم أو الاسم أو الملاحظة"
+            placeholder="بحث..."
           />
-          <select className="view-select" value={viewMode} onChange={(e) => setViewMode(e.target.value)}>
+          <select className="filter-select" value={viewMode} onChange={(e) => setViewMode(e.target.value)}>
             {Object.entries(VIEW_LABELS).map(([k, v]) => (
               <option key={k} value={k}>{v}</option>
             ))}
           </select>
-          <input
-            type="date"
-            className="date-filter"
-            value={dateFrom}
-            onChange={(e) => setDateFrom(e.target.value)}
-            title="من تاريخ"
-          />
-          <input
-            type="date"
-            className="date-filter"
-            value={dateTo}
-            onChange={(e) => setDateTo(e.target.value)}
-            title="إلى تاريخ"
-          />
-          <select value={customerFilter} onChange={(e) => setCustomerFilter(e.target.value)}>
+          <select className="filter-select" value={customerFilter} onChange={(e) => setCustomerFilter(e.target.value)}>
             <option value={FILTER_ALL}>كل الزبائن</option>
             {customers.map((c) => (
               <option key={c.id} value={c.id}>{c.name}</option>
             ))}
           </select>
-          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+          <select className="filter-select" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
             <option value={FILTER_ALL}>كل الحالات</option>
             {statusOrder.map((s) => (
               <option key={s} value={s}>{statusMeta[s].label}</option>
             ))}
           </select>
-          <select value={sortMode} onChange={(e) => setSortMode(e.target.value)}>
-            <option value="smart">ذكي (الأهم أولاً)</option>
+          <select className="filter-select" value={sortMode} onChange={(e) => setSortMode(e.target.value)}>
+            <option value="smart">ذكي</option>
             <option value="latest">الأحدث</option>
             <option value="oldest">الأقدم</option>
             <option value="customer">الزبون</option>
           </select>
+          <input type="date" className="filter-date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
+          <input type="date" className="filter-date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
           <button className="ghost-button ghost-button--muted" onClick={onResetFilters}>تصفير</button>
         </div>
       </section>
