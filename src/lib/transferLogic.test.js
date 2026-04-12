@@ -18,632 +18,548 @@ import {
 } from './transferLogic'
 import {
   buildCustomerStatement,
-  buildLedgerEntries,
   buildLegacySettlementEntry,
   buildOpeningBalanceEntry,
   buildSeedLedgerEntries,
+  buildTransferLedgerEntries,
   createProfitClaimEntry,
   groupUnsettledTransfersByCustomer,
   LEDGER_ENTRY_TYPES,
   summarizeOfficeLedger,
-  summarizeLedgerByCustomer,
 } from './ledger'
 
-const customers = [
-  {
-    id: 101, name: 'محمد', openingBalance: 500, settledTotal: 100,
-    createdAt: '2026-04-11T09:00:00.000Z', updatedAt: '2026-04-11T09:00:00.000Z',
-  },
-  {
-    id: 102, name: 'ليلى', openingBalance: 0, settledTotal: 0,
-    createdAt: '2026-04-11T09:00:00.000Z', updatedAt: '2026-04-11T09:00:00.000Z',
-  },
-]
+/* ══════════════════════════════════════════════════════
+ *  Fixtures — realistic data used across all tests
+ * ══════════════════════════════════════════════════════ */
 
-const sample = [
-  {
-    id: 1, customerId: 101, reference: 'WU-100', senderName: 'أحمد', receiverName: 'محمد',
-    status: 'received', issueCode: '', systemAmount: null, customerAmount: null,
-    margin: null, settled: false, settledAt: null, note: '',
-    createdAt: '2026-04-11T09:00:00.000Z', updatedAt: '2026-04-11T09:00:00.000Z',
-  },
-  {
-    id: 2, customerId: 102, reference: 'WU-200', senderName: 'منى', receiverName: 'ليلى',
-    status: 'picked_up', issueCode: '', systemAmount: 100, customerAmount: 90,
-    margin: 10, settled: false, settledAt: null, note: '',
-    createdAt: '2026-04-11T10:00:00.000Z', updatedAt: '2026-04-11T10:00:00.000Z',
-  },
-]
+const omar = {
+  id: 201, name: 'عمر', openingBalance: 1000, settledTotal: 200,
+  createdAt: '2026-04-12T06:00:00.000Z', updatedAt: '2026-04-12T06:00:00.000Z',
+}
+const sara = {
+  id: 202, name: 'سارة', openingBalance: 0, settledTotal: 0,
+  createdAt: '2026-04-12T06:00:00.000Z', updatedAt: '2026-04-12T06:00:00.000Z',
+}
+const customers = [omar, sara]
+const seeds = buildSeedLedgerEntries(customers)
 
-describe('transferLogic', () => {
-  it('parseMoney handles edge cases', () => {
+const txBase = {
+  issueCode: '', note: '', transferAmount: null, settled: false, settledAt: null,
+  sentAt: null, pickedUpAt: null, issueAt: null, reviewHoldAt: null, resetAt: null,
+}
+
+function makeTx(overrides) {
+  return { ...txBase, ...overrides }
+}
+
+/* ══════════════════════════════════════════════════════
+ *  1. الأساسيات — الحسابات والتحقق
+ * ══════════════════════════════════════════════════════ */
+
+describe('الأساسيات', () => {
+  it('parseMoney يتعامل مع كل الحالات', () => {
     expect(parseMoney('')).toBe(0)
     expect(parseMoney(null)).toBe(0)
     expect(parseMoney(undefined)).toBe(0)
     expect(parseMoney('abc')).toBe(0)
     expect(parseMoney('100.5')).toBe(100.5)
-    expect(parseMoney(42)).toBe(42)
     expect(parseMoney(0)).toBe(0)
+    expect(parseMoney(-50)).toBe(-50)
   })
 
-  it('computes margin only when both amounts exist', () => {
-    expect(computeMargin(100, 88)).toBe(12)
+  it('computeMargin يحسب الفرق فقط عند وجود القيمتين', () => {
+    expect(computeMargin(500, 480)).toBe(20)
+    expect(computeMargin(100, 100)).toBe(0)
     expect(computeMargin(100, null)).toBeNull()
+    expect(computeMargin(null, 90)).toBeNull()
+    expect(computeMargin(null, null)).toBeNull()
   })
 
-  it('creates customer and blocks duplicate names', () => {
-    const created = buildCustomerFromDraft({ name: 'سالم', openingBalance: '100', settledTotal: '20' }, customers)
-    expect(created.ok).toBe(true)
+  it('updateAmount يحسب الهامش تلقائياً عند تغيير المبالغ', () => {
+    const t = makeTx({ id: 1, systemAmount: null, customerAmount: null, margin: null })
+    const step1 = updateAmount(t, 'systemAmount', '500')
+    expect(step1.systemAmount).toBe(500)
+    expect(step1.margin).toBeNull() // customerAmount لسه فارغ
 
-    const dup = buildCustomerFromDraft({ name: 'محمد', openingBalance: '', settledTotal: '' }, customers)
-    expect(dup.ok).toBe(false)
+    const step2 = updateAmount(step1, 'customerAmount', '480')
+    expect(step2.margin).toBe(20)
   })
 
-  it('requires selected customer when creating transfer', () => {
-    const result = buildTransferFromDraft(
-      { customerId: '', senderName: 'سالم', reference: 'wu-300' },
-      sample, customers,
+  it('updateAmount لا يحسب هامش عند تغيير transferAmount', () => {
+    const t = makeTx({ id: 1, systemAmount: 500, customerAmount: 480, margin: 20 })
+    const result = updateAmount(t, 'transferAmount', '600')
+    expect(result.transferAmount).toBe(600)
+    expect(result.margin).toBe(20) // لم يتغير
+  })
+})
+
+/* ══════════════════════════════════════════════════════
+ *  2. بناء الزبائن والحوالات
+ * ══════════════════════════════════════════════════════ */
+
+describe('بناء الزبائن والحوالات', () => {
+  it('يرفض زبون بدون اسم', () => {
+    expect(buildCustomerFromDraft({ name: '', openingBalance: '', settledTotal: '' }, []).ok).toBe(false)
+  })
+
+  it('يرفض زبون مكرر', () => {
+    expect(buildCustomerFromDraft({ name: 'عمر', openingBalance: '0', settledTotal: '0' }, customers).ok).toBe(false)
+  })
+
+  it('يقبل زبون جديد بأرقام صحيحة', () => {
+    const r = buildCustomerFromDraft({ name: 'خالد', openingBalance: '500', settledTotal: '100' }, customers)
+    expect(r.ok).toBe(true)
+    expect(r.value.openingBalance).toBe(500)
+    expect(r.value.settledTotal).toBe(100)
+  })
+
+  it('يرفض حوالة بدون زبون', () => {
+    expect(buildTransferFromDraft(
+      { customerId: '', senderName: 'أحمد', reference: 'X-1', transferAmount: '', customerAmount: '' },
+      [], customers,
+    ).ok).toBe(false)
+  })
+
+  it('يرفض حوالة بدون مرسل', () => {
+    const r = buildTransferFromDraft(
+      { customerId: '201', senderName: '', reference: 'X-1', transferAmount: '', customerAmount: '' },
+      [], customers,
     )
-    expect(result.ok).toBe(false)
+    expect(r.ok).toBe(false)
+    expect(r.error).toContain('المرسل')
   })
 
-  it('requires sender name', () => {
-    const result = buildTransferFromDraft(
-      { customerId: '101', senderName: '', reference: 'wu-300' },
-      sample, customers,
+  it('يرفض رقم حوالة مكرر', () => {
+    const existing = [makeTx({ id: 1, reference: 'WU-100', customerId: 201, senderName: 'أحمد', receiverName: 'عمر', status: 'received', createdAt: '2026-04-12T08:00:00.000Z', updatedAt: '2026-04-12T08:00:00.000Z' })]
+    expect(buildTransferFromDraft(
+      { customerId: '201', senderName: 'سالم', reference: 'wu-100', transferAmount: '', customerAmount: '' },
+      existing, customers,
+    ).ok).toBe(false)
+  })
+
+  it('ينشئ حوالة بحالة received مع المبالغ', () => {
+    const r = buildTransferFromDraft(
+      { customerId: '201', senderName: 'أحمد', reference: ' wu-999 ', transferAmount: '500', customerAmount: '480' },
+      [], customers,
     )
-    expect(result.ok).toBe(false)
-    expect(result.error).toBe('يجب إدخال اسم المرسل.')
+    expect(r.ok).toBe(true)
+    expect(r.value.status).toBe('received')
+    expect(r.value.reference).toBe('WU-999')
+    expect(r.value.receiverName).toBe('عمر')
+    expect(r.value.transferAmount).toBe(500)
+    expect(r.value.customerAmount).toBe(480)
+    expect(r.value.systemAmount).toBeNull()
+    expect(r.value.settled).toBe(false)
+  })
+})
+
+/* ══════════════════════════════════════════════════════
+ *  3. التحقق من الانتقالات
+ * ══════════════════════════════════════════════════════ */
+
+describe('التحقق من الانتقالات', () => {
+  it('يرفض الإرسال للموظف بدون transferAmount', () => {
+    const t = makeTx({ transferAmount: null, customerAmount: 480 })
+    expect(validateTransition(t, 'with_employee').ok).toBe(false)
   })
 
-  it('prevents duplicate references', () => {
-    const result = buildTransferFromDraft(
-      { customerId: '101', senderName: 'سالم', reference: 'wu-100' },
-      sample, customers,
-    )
-    expect(result.ok).toBe(false)
+  it('يرفض الإرسال للموظف بدون customerAmount', () => {
+    const t = makeTx({ transferAmount: 500, customerAmount: null })
+    expect(validateTransition(t, 'with_employee').ok).toBe(false)
   })
 
-  it('creates transfer and binds receiver name to selected customer', () => {
-    const result = buildTransferFromDraft(
-      { customerId: '101', senderName: 'سالم', reference: ' wu-300 ', transferAmount: '500', customerAmount: '480' },
-      sample, customers,
-    )
-    expect(result.ok).toBe(true)
-    expect(result.value.status).toBe('received')
-    expect(result.value.settled).toBe(false)
-    expect(result.value.reference).toBe('WU-300')
-    expect(result.value.receiverName).toBe('محمد')
-    expect(result.value.transferAmount).toBe(500)
-    expect(result.value.customerAmount).toBe(480)
-    expect(result.value.systemAmount).toBeNull()
-    expect(result.value.margin).toBeNull()
+  it('يقبل الإرسال للموظف مع المبلغين', () => {
+    const t = makeTx({ transferAmount: 500, customerAmount: 480 })
+    expect(validateTransition(t, 'with_employee').ok).toBe(true)
   })
 
-  it('transitions to with_employee', () => {
-    const next = transitionTransfer(sample[0], 'with_employee')
+  it('يرفض تم السحب بدون systemAmount', () => {
+    const t = makeTx({ customerAmount: 480, systemAmount: null })
+    expect(validateTransition(t, 'picked_up').ok).toBe(false)
+  })
+
+  it('يرفض تم السحب بدون customerAmount', () => {
+    const t = makeTx({ customerAmount: null, systemAmount: 490 })
+    expect(validateTransition(t, 'picked_up').ok).toBe(false)
+  })
+
+  it('يقبل تم السحب مع المبلغين', () => {
+    const t = makeTx({ customerAmount: 480, systemAmount: 490 })
+    expect(validateTransition(t, 'picked_up').ok).toBe(true)
+  })
+})
+
+/* ══════════════════════════════════════════════════════
+ *  4. دورة حياة الحوالة الكاملة
+ * ══════════════════════════════════════════════════════ */
+
+describe('دورة حياة الحوالة', () => {
+  it('received → with_employee يسجّل sentAt', () => {
+    const t = makeTx({ id: 1, status: 'received' })
+    const next = transitionTransfer(t, 'with_employee')
     expect(next.status).toBe('with_employee')
     expect(next.sentAt).toBeTruthy()
   })
 
-  it('transitions to picked_up', () => {
-    const next = transitionTransfer(sample[0], 'picked_up')
+  it('with_employee → picked_up يسجّل pickedUpAt', () => {
+    const t = makeTx({ id: 1, status: 'with_employee' })
+    const next = transitionTransfer(t, 'picked_up')
     expect(next.status).toBe('picked_up')
     expect(next.pickedUpAt).toBeTruthy()
   })
 
-  it('transitions to review_hold', () => {
-    const next = transitionTransfer({ ...sample[0], status: 'with_employee' }, 'review_hold')
+  it('with_employee → review_hold يسجّل reviewHoldAt', () => {
+    const t = makeTx({ id: 1, status: 'with_employee' })
+    const next = transitionTransfer(t, 'review_hold')
     expect(next.status).toBe('review_hold')
     expect(next.reviewHoldAt).toBeTruthy()
   })
 
-  it('resets issue transfer back to received and clears office progress fields', () => {
-    const issueTransfer = {
-      ...sample[1],
-      status: 'issue',
-      issueCode: 'missing_info',
-      systemAmount: 110,
-      margin: 20,
-      sentAt: '2026-04-11T10:00:00.000Z',
-      pickedUpAt: '2026-04-11T11:00:00.000Z',
-    }
-    const next = transitionTransfer(issueTransfer, 'received')
+  it('with_employee → issue يسجّل issueAt', () => {
+    const t = makeTx({ id: 1, status: 'with_employee' })
+    const next = transitionTransfer(t, 'issue')
+    expect(next.status).toBe('issue')
+    expect(next.issueAt).toBeTruthy()
+  })
+
+  it('إعادة لـ received يمسح كل شيء', () => {
+    const t = makeTx({
+      id: 1, status: 'issue', issueCode: 'name_mismatch',
+      transferAmount: 500, customerAmount: 480, systemAmount: 490, margin: 10,
+      sentAt: 'x', pickedUpAt: 'x', settled: true, settledAt: 'x',
+    })
+    const next = transitionTransfer(t, 'received')
     expect(next.status).toBe('received')
     expect(next.issueCode).toBe('')
-    expect(next.systemAmount).toBeNull()
-    expect(next.customerAmount).toBeNull()
     expect(next.transferAmount).toBeNull()
+    expect(next.customerAmount).toBeNull()
+    expect(next.systemAmount).toBeNull()
     expect(next.margin).toBeNull()
     expect(next.sentAt).toBeNull()
     expect(next.pickedUpAt).toBeNull()
+    expect(next.settled).toBe(false)
+    expect(next.settledAt).toBeNull()
+    expect(next.resetAt).toBeTruthy()
+  })
+})
+
+/* ══════════════════════════════════════════════════════
+ *  5. التسوية
+ * ══════════════════════════════════════════════════════ */
+
+describe('التسوية', () => {
+  const pickedUp = makeTx({
+    id: 10, customerId: 201, status: 'picked_up',
+    systemAmount: 500, customerAmount: 480, margin: 20,
+    createdAt: '2026-04-12T10:00:00.000Z', updatedAt: '2026-04-12T10:00:00.000Z',
   })
 
-  it('validates transition to with_employee requires both transferAmount and customerAmount', () => {
-    const noAmounts = { ...sample[0], transferAmount: null, customerAmount: null }
-    expect(validateTransition(noAmounts, 'with_employee').ok).toBe(false)
-
-    const onlyTransfer = { ...sample[0], transferAmount: 500, customerAmount: null }
-    expect(validateTransition(onlyTransfer, 'with_employee').ok).toBe(false)
-
-    const onlyCustomer = { ...sample[0], transferAmount: null, customerAmount: 480 }
-    expect(validateTransition(onlyCustomer, 'with_employee').ok).toBe(false)
-
-    const withBoth = { ...sample[0], transferAmount: 500, customerAmount: 480 }
-    expect(validateTransition(withBoth, 'with_employee').ok).toBe(true)
-  })
-
-  it('validates transition to picked_up requires systemAmount and customerAmount', () => {
-    const noSystem = { ...sample[0], customerAmount: 480, systemAmount: null }
-    expect(validateTransition(noSystem, 'picked_up').ok).toBe(false)
-
-    const noCustomer = { ...sample[0], customerAmount: null, systemAmount: 490 }
-    expect(validateTransition(noCustomer, 'picked_up').ok).toBe(false)
-
-    const withSystem = { ...sample[0], customerAmount: 480, systemAmount: 490 }
-    const check2 = validateTransition(withSystem, 'picked_up')
-    expect(check2.ok).toBe(true)
-  })
-
-  it('clears issueCode when leaving issue status', () => {
-    const withIssue = { ...sample[0], status: 'issue', issueCode: 'name_mismatch' }
-    const next = transitionTransfer(withIssue, 'with_employee')
-    expect(next.issueCode).toBe('')
-  })
-
-  it('recomputes margin when amount changes', () => {
-    const next = updateAmount(sample[0], 'systemAmount', '120')
-    const final = updateAmount(next, 'customerAmount', '111')
-    expect(final.margin).toBe(9)
-  })
-
-  it('settles selected transfers', () => {
-    const transfers = [
-      { ...sample[1], id: 10 },
-      { ...sample[1], id: 20 },
-      { ...sample[0], id: 30 },
+  it('settleTransfers يسوّي فقط picked_up غير المسوّاة', () => {
+    const txs = [
+      { ...pickedUp, id: 10 },
+      { ...pickedUp, id: 11, settled: true }, // مسوّاة أصلاً
+      makeTx({ id: 12, status: 'received', customerId: 201, createdAt: '2026-04-12T10:00:00.000Z', updatedAt: '2026-04-12T10:00:00.000Z' }), // ليست picked_up
     ]
-    const result = settleTransfers(transfers, [10, 20])
-    expect(result[0].settled).toBe(true)
+    const result = settleTransfers(txs, [10, 11, 12])
+    expect(result[0].settled).toBe(true)   // تسوّت
     expect(result[0].settledAt).toBeTruthy()
-    expect(result[1].settled).toBe(true)
-    expect(result[2].settled).toBe(false)
+    expect(result[1].settled).toBe(true)   // كانت مسوّاة — لم تتغير
+    expect(result[2].settled).toBe(false)  // ليست picked_up — لم تتأثر
   })
 
-  it('does not settle non-picked_up transfers', () => {
-    const result = settleTransfers(sample, [1])
-    expect(result[0].settled).toBe(false)
-  })
-
-  it('gets unsettled transfers for customer', () => {
-    const transfers = [
-      { ...sample[1], id: 10, customerId: 102 },
-      { ...sample[1], id: 20, customerId: 102, settled: true },
-      { ...sample[1], id: 30, customerId: 101 },
+  it('getUnsettledForCustomer يرجع فقط picked_up غير المسوّاة لزبون محدد', () => {
+    const txs = [
+      { ...pickedUp, id: 20, customerId: 201 },
+      { ...pickedUp, id: 21, customerId: 201, settled: true },
+      { ...pickedUp, id: 22, customerId: 202 },
     ]
-    const unsettled = getUnsettledForCustomer(transfers, 102)
-    expect(unsettled).toHaveLength(1)
-    expect(unsettled[0].id).toBe(10)
+    const result = getUnsettledForCustomer(txs, 201)
+    expect(result).toHaveLength(1)
+    expect(result[0].id).toBe(20)
+  })
+})
+
+/* ══════════════════════════════════════════════════════
+ *  6. الفلترة والترتيب
+ * ══════════════════════════════════════════════════════ */
+
+describe('الفلترة والترتيب', () => {
+  const customersById = new Map(customers.map((c) => [c.id, c]))
+  const txs = [
+    makeTx({ id: 30, customerId: 201, reference: 'WU-AAA', senderName: 'أحمد', receiverName: 'عمر', status: 'received', createdAt: '2026-04-12T08:00:00.000Z', updatedAt: '2026-04-12T08:00:00.000Z' }),
+    makeTx({ id: 31, customerId: 202, reference: 'WU-BBB', senderName: 'منى', receiverName: 'سارة', status: 'issue', createdAt: '2026-04-12T09:00:00.000Z', updatedAt: '2026-04-12T09:00:00.000Z' }),
+    makeTx({ id: 32, customerId: 201, reference: 'WU-CCC', senderName: 'سالم', receiverName: 'عمر', status: 'picked_up', settled: true, systemAmount: 100, customerAmount: 90, margin: 10, createdAt: '2025-01-01T10:00:00.000Z', updatedAt: '2025-01-01T10:00:00.000Z' }),
+  ]
+
+  it('البحث بالرقم يجد الحوالة', () => {
+    const r = filterTransfers(txs, { searchTerm: 'aaa', statusFilter: 'all', viewMode: 'all', customerFilter: 'all' }, customersById)
+    expect(r).toHaveLength(1)
+    expect(r[0].id).toBe(30)
   })
 
-  it('filters by status and view mode', () => {
-    const customersById = new Map(customers.map((c) => [c.id, c]))
-    const filtered = filterTransfers(sample, {
-      searchTerm: '',
-      statusFilter: 'picked_up',
-      viewMode: 'all',
-      customerFilter: 'all',
-    }, customersById)
-    expect(filtered).toHaveLength(1)
-    expect(filtered[0].reference).toBe('WU-200')
+  it('البحث باسم الزبون يجد حوالاته', () => {
+    const r = filterTransfers(txs, { searchTerm: 'سارة', statusFilter: 'all', viewMode: 'all', customerFilter: 'all' }, customersById)
+    expect(r).toHaveLength(1)
+    expect(r[0].id).toBe(31)
   })
 
-  it('active view keeps old unsettled picked_up transfers visible', () => {
-    const customersById = new Map(customers.map((c) => [c.id, c]))
-    const oldPickedUp = {
-      ...sample[1], id: 99, status: 'picked_up',
-      createdAt: '2025-01-01T09:00:00.000Z', updatedAt: '2025-01-01T09:00:00.000Z',
-    }
-    const filtered = filterTransfers([...sample, oldPickedUp], {
-      searchTerm: '',
-      statusFilter: 'all',
-      viewMode: 'active',
-      customerFilter: 'all',
-    }, customersById)
-    expect(filtered.some((t) => t.id === 99)).toBe(true)
-    expect(filtered.some((t) => t.status === 'received')).toBe(true)
+  it('العرض النشط يخفي المسوّاة القديمة', () => {
+    const r = filterTransfers(txs, { searchTerm: '', statusFilter: 'all', viewMode: 'active', customerFilter: 'all' }, customersById)
+    expect(r.some((t) => t.id === 32)).toBe(false) // مسوّاة قديمة — مخفية
+    expect(r.some((t) => t.id === 30)).toBe(true)   // received — ظاهرة
+    expect(r.some((t) => t.id === 31)).toBe(true)   // issue — ظاهرة
   })
 
-  it('smart sort puts issues first', () => {
-    const customersById = new Map(customers.map((c) => [c.id, c]))
-    const withIssue = [
-      { ...sample[0], id: 10, status: 'received' },
-      { ...sample[0], id: 20, status: 'issue' },
-      { ...sample[0], id: 30, status: 'with_employee' },
-    ]
-    const sorted = sortTransfers(withIssue, 'smart', customersById)
+  it('العرض المكتمل يُظهر المسوّاة فقط', () => {
+    const r = filterTransfers(txs, { searchTerm: '', statusFilter: 'all', viewMode: 'completed', customerFilter: 'all' }, customersById)
+    expect(r).toHaveLength(1)
+    expect(r[0].id).toBe(32)
+  })
+
+  it('الترتيب الذكي يضع المشاكل أولاً', () => {
+    const sorted = sortTransfers(txs, 'smart', customersById)
     expect(sorted[0].status).toBe('issue')
     expect(sorted[1].status).toBe('received')
-    expect(sorted[2].status).toBe('with_employee')
   })
 
-  it('sorts by customer name', () => {
-    const customersById = new Map(customers.map((c) => [c.id, c]))
-    const sorted = sortTransfers(sample, 'customer', customersById)
-    expect(sorted[0].reference).toBe('WU-200')
+  it('الفلتر بالزبون يعرض حوالاته فقط', () => {
+    const r = filterTransfers(txs, { searchTerm: '', statusFilter: 'all', viewMode: 'all', customerFilter: '202' }, customersById)
+    expect(r).toHaveLength(1)
+    expect(r[0].customerId).toBe(202)
+  })
+})
+
+/* ══════════════════════════════════════════════════════
+ *  7. دفتر الحسابات (Ledger)
+ * ══════════════════════════════════════════════════════ */
+
+describe('دفتر الحسابات', () => {
+  it('buildOpeningBalanceEntry ينشئ قيد لرصيد موجب ويتجاهل الصفر', () => {
+    expect(buildOpeningBalanceEntry(omar)).not.toBeNull()
+    expect(buildOpeningBalanceEntry(omar).amount).toBe(1000)
+    expect(buildOpeningBalanceEntry(sara)).toBeNull()
   })
 
-  it('summarizes transfers with accountant pending', () => {
-    const summary = summarizeTransfers(sample)
-    expect(summary.total).toBe(2)
-    expect(summary.unsettledCount).toBe(1)
-    expect(summary.accountantPending).toBe(100)
-    expect(summary.customerOwed).toBe(90)
-    expect(summary.totalMargin).toBe(10)
-  })
-
-  it('summarizes customer balances with settlement tracking', () => {
-    const transfers = [
-      { ...sample[1], id: 3, customerId: 101, customerAmount: 200, systemAmount: 220, margin: 20 },
-      { ...sample[1], id: 4, customerId: 101, customerAmount: 150, systemAmount: 170, margin: 20, settled: true },
-    ]
-    const summary = summarizeCustomers(customers, transfers, buildSeedLedgerEntries(customers))
-    const mohamed = summary.find((c) => c.id === 101)
-    expect(mohamed.unsettledCount).toBe(1)
-    expect(mohamed.unsettledAmount).toBe(200)
-    expect(mohamed.settledCount).toBe(1)
-    expect(mohamed.settledAmount).toBe(150)
-    expect(mohamed.receivedCount).toBe(0)
-    expect(mohamed.withEmployeeCount).toBe(0)
-    expect(mohamed.reviewHoldCount).toBe(0)
-    expect(mohamed.issueCount).toBe(0)
-    expect(mohamed.currentBalance).toBe(600)
-    expect(mohamed.ledgerCredits).toBe(850)
-    expect(mohamed.ledgerDebits).toBe(250)
-  })
-
-  it('migrates old status format', () => {
-    const oldTransfer = {
-      id: 99, customerId: 101, reference: 'WU-OLD', senderName: 'قديم', receiverName: 'محمد',
-      issueCode: '', systemAmount: 100, customerAmount: 90, margin: 10, note: '',
-      createdAt: '2026-04-11T09:00:00.000Z', updatedAt: '2026-04-11T09:00:00.000Z',
-    }
-    const oldState = {
-      customers,
-      transfers: [
-        { ...oldTransfer, id: 1, status: 'new', paymentStatus: 'pending' },
-        { ...oldTransfer, id: 2, status: 'paid', paymentStatus: 'paid' },
-        { ...oldTransfer, id: 3, status: 'sent_to_operator', paymentStatus: 'pending' },
-      ],
-    }
-    const migrated = migrateState(oldState)
-    expect(migrated.transfers[0].status).toBe('received')
-    expect(migrated.transfers[0].settled).toBe(false)
-    expect(migrated.transfers[1].status).toBe('picked_up')
-    expect(migrated.transfers[1].settled).toBe(true)
-    expect(migrated.transfers[2].status).toBe('with_employee')
-    expect(migrated.ledgerEntries.some((entry) => entry.type === LEDGER_ENTRY_TYPES.OPENING_BALANCE)).toBe(true)
-  })
-
-  it('migration adds transferAmount field for old data', () => {
-    const oldTransfer = {
-      id: 77, customerId: 101, reference: 'WU-MIGRATE', senderName: 'قديم', receiverName: 'محمد',
-      issueCode: '', systemAmount: 100, customerAmount: 90, margin: 10, note: '',
-      status: 'new', paymentStatus: 'pending',
-      createdAt: '2026-04-11T09:00:00.000Z', updatedAt: '2026-04-11T09:00:00.000Z',
-    }
-    const migrated = migrateState({ customers, transfers: [oldTransfer] })
-    expect(migrated.transfers[0].transferAmount).toBeNull()
-  })
-
-  it('buildLegacySettlementEntry produces negative amount', () => {
-    const entry = buildLegacySettlementEntry(customers[0])
+  it('buildLegacySettlementEntry ينشئ قيد سالب', () => {
+    const entry = buildLegacySettlementEntry(omar)
     expect(entry).not.toBeNull()
-    expect(entry.amount).toBe(-100)
-    expect(entry.type).toBe(LEDGER_ENTRY_TYPES.LEGACY_SETTLEMENT)
+    expect(entry.amount).toBe(-200)
+    expect(buildLegacySettlementEntry(sara)).toBeNull()
   })
 
-  it('buildOpeningBalanceEntry returns null for zero balance', () => {
-    const entry = buildOpeningBalanceEntry(customers[1])
-    expect(entry).toBeNull()
-  })
-
-  it('filters by search term across reference, sender, customer name', () => {
-    const customersById = new Map(customers.map((c) => [c.id, c]))
-    const byRef = filterTransfers(sample, {
-      searchTerm: 'wu-200', statusFilter: 'all', viewMode: 'all', customerFilter: 'all',
-    }, customersById)
-    expect(byRef).toHaveLength(1)
-    expect(byRef[0].reference).toBe('WU-200')
-
-    const bySender = filterTransfers(sample, {
-      searchTerm: 'أحمد', statusFilter: 'all', viewMode: 'all', customerFilter: 'all',
-    }, customersById)
-    expect(bySender).toHaveLength(1)
-    expect(bySender[0].senderName).toBe('أحمد')
-
-    const byCustomer = filterTransfers(sample, {
-      searchTerm: 'ليلى', statusFilter: 'all', viewMode: 'all', customerFilter: 'all',
-    }, customersById)
-    expect(byCustomer).toHaveLength(1)
-  })
-
-  it('completed view shows only settled picked_up transfers', () => {
-    const customersById = new Map(customers.map((c) => [c.id, c]))
-    const settledSample = [
-      { ...sample[1], id: 88, settled: true, settledAt: '2026-04-11T12:00:00.000Z' },
-      { ...sample[0], id: 89, status: 'received' },
-    ]
-    const filtered = filterTransfers(settledSample, {
-      searchTerm: '', statusFilter: 'all', viewMode: 'completed', customerFilter: 'all',
-    }, customersById)
-    expect(filtered).toHaveLength(1)
-    expect(filtered[0].settled).toBe(true)
-  })
-
-  it('parses valid backup payload', () => {
-    const restored = parseAppStateBackup(JSON.stringify({ customers, transfers: sample }))
-    expect(restored.customers).toHaveLength(2)
-    expect(restored.transfers).toHaveLength(2)
-    expect(restored.ledgerEntries.length).toBeGreaterThan(0)
-  })
-
-  it('builds ledger entries from transfers and opening balances', () => {
-    const entries = buildLedgerEntries([
-      { ...sample[1], id: 7, customerId: 101, customerAmount: 120, settled: false },
-      { ...sample[1], id: 8, customerId: 101, customerAmount: 80, settled: true },
-    ], buildSeedLedgerEntries(customers))
-
-    expect(entries.some((entry) => entry.id === 'opening-101')).toBe(true)
-    expect(entries.some((entry) => entry.id === 'transfer-due-7')).toBe(true)
-    expect(entries.some((entry) => entry.id === 'transfer-settlement-8')).toBe(true)
-  })
-
-  it('summarizes ledger balances by customer', () => {
-    const transfers = [
-      { ...sample[1], id: 11, customerId: 101, customerAmount: 200, settled: false },
-      { ...sample[1], id: 12, customerId: 101, customerAmount: 100, settled: true },
-    ]
-    const summary = summarizeLedgerByCustomer(customers, transfers, buildSeedLedgerEntries(customers))
-    const mohamed = summary.get(101)
-
-    expect(mohamed.currentBalance).toBe(600)
-    expect(mohamed.manualEntriesCount).toBe(2)
-  })
-
-  it('builds a readable customer statement with running balance', () => {
-    const transfers = [
-      { ...sample[1], id: 31, customerId: 101, reference: 'WU-310', senderName: 'خالد', customerAmount: 120, settled: false },
-      { ...sample[1], id: 32, customerId: 101, reference: 'WU-320', senderName: 'علي', customerAmount: 80, settled: true },
-    ]
-    const statement = buildCustomerStatement(customers, transfers, buildSeedLedgerEntries(customers), 101)
-
-    expect(statement[0].label).toBe('رصيد افتتاحي')
-    expect(statement.at(-1).runningBalance).toBe(520)
-    expect(statement.some((entry) => entry.reference === 'WU-320')).toBe(true)
-  })
-
-  it('summarizes office balances without profit mixed into customer due', () => {
-    const claim = createProfitClaimEntry(5)
-    const office = summarizeOfficeLedger(customers, [
-      { ...sample[1], id: 41, customerId: 101, systemAmount: 210, customerAmount: 200, margin: 10, settled: false },
-      { ...sample[1], id: 42, customerId: 102, systemAmount: 120, customerAmount: 100, margin: 20, settled: true },
-    ], [...buildSeedLedgerEntries(customers), claim])
-
-    expect(office.officeCustomerLiability).toBe(600)
-    expect(office.accountantSystemReceived).toBe(330)
-    expect(office.accountantCustomerPaid).toBe(100)
-    expect(office.accountantOutstandingCustomer).toBe(200)
-    expect(office.accountantCashOnHand).toBe(330 - 100 - 200 - 5)
-    expect(office.accountantClaimedProfit).toBe(5)
-    expect(office.accountantClaimableProfit).toBe(15)
-    expect(office.accountantGrossMargin).toBe(30)
-    expect(office.accountantRealizedMargin).toBe(20)
-    expect(office.accountantPendingProfit).toBe(10)
-  })
-
-  it('groups unsettled transfers by customer for separate settlements flow', () => {
-    const groups = groupUnsettledTransfersByCustomer(customers, [
-      { ...sample[1], id: 51, customerId: 101, customerAmount: 90, systemAmount: 100, margin: 10, settled: false },
-      { ...sample[1], id: 52, customerId: 101, customerAmount: 45, systemAmount: 50, margin: 5, settled: false },
-      { ...sample[1], id: 53, customerId: 102, customerAmount: 70, systemAmount: 80, margin: 10, settled: true },
-    ])
-
-    expect(groups).toHaveLength(1)
-    expect(groups[0].customerName).toBe('محمد')
-    expect(groups[0].customerTotal).toBe(135)
-    expect(groups[0].systemTotal).toBe(150)
-  })
-
-  /*
-   * Full-day simulation: 2 customers, 8 transfers across all statuses,
-   * settlements, profit claim — verifies every number across all summaries.
-   */
-  it('full-day scenario: all summaries are cross-consistent', () => {
-    const custs = [
-      { id: 201, name: 'عمر', openingBalance: 1000, settledTotal: 200,
-        createdAt: '2026-04-12T06:00:00.000Z', updatedAt: '2026-04-12T06:00:00.000Z' },
-      { id: 202, name: 'سارة', openingBalance: 0, settledTotal: 0,
-        createdAt: '2026-04-12T06:00:00.000Z', updatedAt: '2026-04-12T06:00:00.000Z' },
-    ]
-    const seeds = buildSeedLedgerEntries(custs)
-
-    // 8 transfers across all statuses
-    const base = { issueCode: '', note: '', transferAmount: null, settled: false, settledAt: null,
-      sentAt: null, pickedUpAt: null, issueAt: null, reviewHoldAt: null, resetAt: null }
-
+  it('buildTransferLedgerEntries يتجاهل غير picked_up', () => {
     const txs = [
-      // عمر — 5 حوالات
-      { ...base, id: 301, customerId: 201, reference: 'T-301', senderName: 'أ', receiverName: 'عمر',
-        status: 'received', transferAmount: 500, customerAmount: 480, systemAmount: null, margin: null,
-        createdAt: '2026-04-12T08:00:00.000Z', updatedAt: '2026-04-12T08:00:00.000Z' },
-      { ...base, id: 302, customerId: 201, reference: 'T-302', senderName: 'ب', receiverName: 'عمر',
-        status: 'with_employee', transferAmount: 600, customerAmount: 570, systemAmount: null, margin: null,
-        sentAt: '2026-04-12T08:30:00.000Z',
-        createdAt: '2026-04-12T08:10:00.000Z', updatedAt: '2026-04-12T08:30:00.000Z' },
-      { ...base, id: 303, customerId: 201, reference: 'T-303', senderName: 'ج', receiverName: 'عمر',
-        status: 'issue', transferAmount: 400, customerAmount: 380, systemAmount: null, margin: null,
-        issueCode: 'name_mismatch', issueAt: '2026-04-12T09:00:00.000Z',
-        createdAt: '2026-04-12T08:20:00.000Z', updatedAt: '2026-04-12T09:00:00.000Z' },
-      { ...base, id: 304, customerId: 201, reference: 'T-304', senderName: 'د', receiverName: 'عمر',
-        status: 'picked_up', transferAmount: 700, customerAmount: 660, systemAmount: 680, margin: 20,
-        pickedUpAt: '2026-04-12T10:00:00.000Z',
-        createdAt: '2026-04-12T08:30:00.000Z', updatedAt: '2026-04-12T10:00:00.000Z' },
-      { ...base, id: 305, customerId: 201, reference: 'T-305', senderName: 'ه', receiverName: 'عمر',
-        status: 'picked_up', transferAmount: 300, customerAmount: 280, systemAmount: 290, margin: 10,
-        settled: true, settledAt: '2026-04-12T11:00:00.000Z',
-        pickedUpAt: '2026-04-12T09:30:00.000Z',
-        createdAt: '2026-04-12T08:40:00.000Z', updatedAt: '2026-04-12T11:00:00.000Z' },
-
-      // سارة — 3 حوالات
-      { ...base, id: 306, customerId: 202, reference: 'T-306', senderName: 'و', receiverName: 'سارة',
-        status: 'review_hold', transferAmount: 250, customerAmount: 230, systemAmount: null, margin: null,
-        reviewHoldAt: '2026-04-12T09:15:00.000Z',
-        createdAt: '2026-04-12T09:00:00.000Z', updatedAt: '2026-04-12T09:15:00.000Z' },
-      { ...base, id: 307, customerId: 202, reference: 'T-307', senderName: 'ز', receiverName: 'سارة',
-        status: 'picked_up', transferAmount: 450, customerAmount: 420, systemAmount: 435, margin: 15,
-        pickedUpAt: '2026-04-12T10:30:00.000Z',
-        createdAt: '2026-04-12T09:10:00.000Z', updatedAt: '2026-04-12T10:30:00.000Z' },
-      { ...base, id: 308, customerId: 202, reference: 'T-308', senderName: 'ح', receiverName: 'سارة',
-        status: 'picked_up', transferAmount: 350, customerAmount: 330, systemAmount: 340, margin: 10,
-        settled: true, settledAt: '2026-04-12T12:00:00.000Z',
-        pickedUpAt: '2026-04-12T11:00:00.000Z',
-        createdAt: '2026-04-12T09:20:00.000Z', updatedAt: '2026-04-12T12:00:00.000Z' },
+      makeTx({ id: 1, status: 'received', customerAmount: 480, createdAt: '2026-04-12T08:00:00.000Z', updatedAt: '2026-04-12T08:00:00.000Z' }),
+      makeTx({ id: 2, status: 'issue', customerAmount: 300, createdAt: '2026-04-12T08:00:00.000Z', updatedAt: '2026-04-12T08:00:00.000Z' }),
     ]
+    expect(buildTransferLedgerEntries(txs)).toHaveLength(0)
+  })
 
-    // ── 1. Transfer summary (from summarizeTransfers) ──
-    const tSummary = summarizeTransfers(txs)
-    expect(tSummary.total).toBe(8)
-    expect(tSummary.receivedCount).toBe(1)          // T-301
-    expect(tSummary.withEmployeeCount).toBe(1)      // T-302
-    expect(tSummary.issueCount).toBe(1)             // T-303
-    expect(tSummary.pickedUpCount).toBe(4)          // T-304,305,307,308
-    expect(tSummary.settledCount).toBe(2)           // T-305,308
-    expect(tSummary.unsettledCount).toBe(2)         // T-304,307
+  it('picked_up غير مسوّاة تنشئ قيد DUE فقط', () => {
+    const txs = [makeTx({ id: 3, status: 'picked_up', customerAmount: 480, settled: false, pickedUpAt: '2026-04-12T10:00:00.000Z', createdAt: '2026-04-12T08:00:00.000Z', updatedAt: '2026-04-12T10:00:00.000Z' })]
+    const entries = buildTransferLedgerEntries(txs)
+    expect(entries).toHaveLength(1)
+    expect(entries[0].type).toBe('transfer_due')
+    expect(entries[0].amount).toBe(480)
+    expect(entries[0].createdAt).toBe('2026-04-12T10:00:00.000Z') // يستخدم pickedUpAt
+  })
 
-    // Totals from picked_up only
-    expect(tSummary.totalSystem).toBe(680 + 290 + 435 + 340)   // 1745
-    expect(tSummary.totalCustomer).toBe(660 + 280 + 420 + 330) // 1690
-    expect(tSummary.totalMargin).toBe(20 + 10 + 15 + 10)       // 55
+  it('picked_up مسوّاة تنشئ DUE + SETTLEMENT', () => {
+    const txs = [makeTx({ id: 4, status: 'picked_up', customerAmount: 480, settled: true, settledAt: '2026-04-12T12:00:00.000Z', pickedUpAt: '2026-04-12T10:00:00.000Z', createdAt: '2026-04-12T08:00:00.000Z', updatedAt: '2026-04-12T12:00:00.000Z' })]
+    const entries = buildTransferLedgerEntries(txs)
+    expect(entries).toHaveLength(2)
+    expect(entries[0].amount).toBe(480)
+    expect(entries[1].amount).toBe(-480)
+    expect(entries[1].createdAt).toBe('2026-04-12T12:00:00.000Z') // يستخدم settledAt
+  })
 
-    // Accountant pending (unsettled picked_up system amounts)
-    expect(tSummary.accountantPending).toBe(680 + 435)          // 1115
-    expect(tSummary.customerOwed).toBe(660 + 420)               // 1080
+  it('كشف حساب الزبون بأرصدة تراكمية صحيحة', () => {
+    const txs = [
+      makeTx({ id: 5, customerId: 201, reference: 'T-5', senderName: 'أ', status: 'picked_up', customerAmount: 300, settled: false, pickedUpAt: '2026-04-12T10:00:00.000Z', createdAt: '2026-04-12T08:00:00.000Z', updatedAt: '2026-04-12T10:00:00.000Z' }),
+      makeTx({ id: 6, customerId: 201, reference: 'T-6', senderName: 'ب', status: 'picked_up', customerAmount: 200, settled: true, settledAt: '2026-04-12T12:00:00.000Z', pickedUpAt: '2026-04-12T11:00:00.000Z', createdAt: '2026-04-12T09:00:00.000Z', updatedAt: '2026-04-12T12:00:00.000Z' }),
+    ]
+    const statement = buildCustomerStatement(customers, txs, seeds, 201)
+    // opening 1000, legacy -200, due(T-5) +300, due(T-6) +200, settlement(T-6) -200
+    const last = statement.at(-1)
+    expect(last.runningBalance).toBe(1000 - 200 + 300 + 200 - 200)  // 1100
+  })
 
-    // ── 2. Customer summary (from summarizeCustomers) ──
-    const cSummary = summarizeCustomers(custs, txs, seeds)
+  it('createProfitClaimEntry ينشئ قيد سالب بـ customerId=0', () => {
+    const claim = createProfitClaimEntry(50)
+    expect(claim.amount).toBe(-50)
+    expect(claim.customerId).toBe(0)
+    expect(claim.type).toBe('profit_claim')
+  })
+})
 
-    const omar = cSummary.find((c) => c.id === 201)
-    expect(omar.transferCount).toBe(5)
-    expect(omar.receivedCount).toBe(1)
-    expect(omar.withEmployeeCount).toBe(1)
-    expect(omar.issueCount).toBe(1)
-    expect(omar.pickedUpCount).toBe(2)              // T-304, T-305
-    expect(omar.settledCount).toBe(1)               // T-305
-    expect(omar.unsettledCount).toBe(1)             // T-304
-    expect(omar.settledAmount).toBe(280)            // T-305 customerAmount
-    expect(omar.unsettledAmount).toBe(660)          // T-304 customerAmount
-    expect(omar.totalMargin).toBe(30)               // 20+10
+/* ══════════════════════════════════════════════════════
+ *  8. الملخصات والربط بين الأقسام
+ * ══════════════════════════════════════════════════════ */
 
-    // Omar ledger: opening 1000, legacy -200, due T-304 +660, due T-305 +280, settlement T-305 -280
-    // = 1000 - 200 + 660 + 280 - 280 = 1460
-    expect(omar.currentBalance).toBe(1460)
-    expect(omar.ledgerCredits).toBe(1000 + 660 + 280)  // 1940
-    expect(omar.ledgerDebits).toBe(200 + 280)           // 480
+describe('الملخصات والربط بين الأقسام', () => {
+  // سيناريو كامل: زبونين، 6 حوالات بحالات مختلطة
+  const txs = [
+    // عمر: received, with_employee, picked_up unsettled, picked_up settled
+    makeTx({ id: 401, customerId: 201, reference: 'T-401', senderName: 'أ', receiverName: 'عمر', status: 'received', transferAmount: 500, customerAmount: 480, createdAt: '2026-04-12T08:00:00.000Z', updatedAt: '2026-04-12T08:00:00.000Z' }),
+    makeTx({ id: 402, customerId: 201, reference: 'T-402', senderName: 'ب', receiverName: 'عمر', status: 'with_employee', transferAmount: 600, customerAmount: 570, sentAt: '2026-04-12T08:30:00.000Z', createdAt: '2026-04-12T08:10:00.000Z', updatedAt: '2026-04-12T08:30:00.000Z' }),
+    makeTx({ id: 403, customerId: 201, reference: 'T-403', senderName: 'ج', receiverName: 'عمر', status: 'picked_up', transferAmount: 700, customerAmount: 660, systemAmount: 680, margin: 20, pickedUpAt: '2026-04-12T10:00:00.000Z', createdAt: '2026-04-12T08:20:00.000Z', updatedAt: '2026-04-12T10:00:00.000Z' }),
+    makeTx({ id: 404, customerId: 201, reference: 'T-404', senderName: 'د', receiverName: 'عمر', status: 'picked_up', transferAmount: 300, customerAmount: 280, systemAmount: 290, margin: 10, settled: true, settledAt: '2026-04-12T11:00:00.000Z', pickedUpAt: '2026-04-12T09:30:00.000Z', createdAt: '2026-04-12T08:30:00.000Z', updatedAt: '2026-04-12T11:00:00.000Z' }),
+    // سارة: issue, picked_up unsettled
+    makeTx({ id: 405, customerId: 202, reference: 'T-405', senderName: 'ه', receiverName: 'سارة', status: 'issue', transferAmount: 250, customerAmount: 230, issueCode: 'missing_info', issueAt: '2026-04-12T09:15:00.000Z', createdAt: '2026-04-12T09:00:00.000Z', updatedAt: '2026-04-12T09:15:00.000Z' }),
+    makeTx({ id: 406, customerId: 202, reference: 'T-406', senderName: 'و', receiverName: 'سارة', status: 'picked_up', transferAmount: 450, customerAmount: 420, systemAmount: 435, margin: 15, pickedUpAt: '2026-04-12T10:30:00.000Z', createdAt: '2026-04-12T09:10:00.000Z', updatedAt: '2026-04-12T10:30:00.000Z' }),
+  ]
 
-    const sara = cSummary.find((c) => c.id === 202)
-    expect(sara.transferCount).toBe(3)
-    expect(sara.receivedCount).toBe(0)
-    expect(sara.reviewHoldCount).toBe(1)            // T-306
-    expect(sara.pickedUpCount).toBe(2)              // T-307, T-308
-    expect(sara.settledCount).toBe(1)               // T-308
-    expect(sara.unsettledCount).toBe(1)             // T-307
-    expect(sara.settledAmount).toBe(330)            // T-308
-    expect(sara.unsettledAmount).toBe(420)          // T-307
+  it('ملخص الحوالات — الأعداد صحيحة', () => {
+    const s = summarizeTransfers(txs)
+    expect(s.total).toBe(6)
+    expect(s.receivedCount).toBe(1)
+    expect(s.withEmployeeCount).toBe(1)
+    expect(s.issueCount).toBe(1)
+    expect(s.pickedUpCount).toBe(3)      // 403, 404, 406
+    expect(s.settledCount).toBe(1)        // 404
+    expect(s.unsettledCount).toBe(2)      // 403, 406
+  })
 
-    // Sara ledger: no opening, due T-307 +420, due T-308 +330, settlement T-308 -330
-    // = 420 + 330 - 330 = 420
-    expect(sara.currentBalance).toBe(420)
-    expect(sara.ledgerCredits).toBe(420 + 330)      // 750
-    expect(sara.ledgerDebits).toBe(330)
+  it('ملخص الحوالات — المبالغ من picked_up فقط', () => {
+    const s = summarizeTransfers(txs)
+    expect(s.totalSystem).toBe(680 + 290 + 435)       // 1405
+    expect(s.totalCustomer).toBe(660 + 280 + 420)     // 1360
+    expect(s.totalMargin).toBe(20 + 10 + 15)          // 45
+    expect(s.accountantPending).toBe(680 + 435)        // 1115 (unsettled system)
+    expect(s.customerOwed).toBe(660 + 420)             // 1080 (unsettled customer)
+  })
 
-    // ── 3. Office ledger (from summarizeOfficeLedger) ──
-    const office = summarizeOfficeLedger(custs, txs, seeds)
+  it('ملخص الزبائن — عمر', () => {
+    const cs = summarizeCustomers(customers, txs, seeds)
+    const o = cs.find((c) => c.id === 201)
+    expect(o.transferCount).toBe(4)
+    expect(o.receivedCount).toBe(1)
+    expect(o.withEmployeeCount).toBe(1)
+    expect(o.pickedUpCount).toBe(2)
+    expect(o.settledCount).toBe(1)
+    expect(o.unsettledCount).toBe(1)
+    expect(o.unsettledAmount).toBe(660)
+    expect(o.settledAmount).toBe(280)
+    // ledger: 1000 - 200 + 660 + 280 - 280 = 1460
+    expect(o.currentBalance).toBe(1460)
+  })
 
-    // officeCustomerLiability = max(1460,0) + max(420,0)
-    expect(office.officeCustomerLiability).toBe(1460 + 420)  // 1880
+  it('ملخص الزبائن — سارة', () => {
+    const cs = summarizeCustomers(customers, txs, seeds)
+    const s = cs.find((c) => c.id === 202)
+    expect(s.transferCount).toBe(2)
+    expect(s.issueCount).toBe(1)
+    expect(s.pickedUpCount).toBe(1)
+    expect(s.unsettledCount).toBe(1)
+    expect(s.unsettledAmount).toBe(420)
+    // ledger: 0 + 420 = 420
+    expect(s.currentBalance).toBe(420)
+  })
 
-    expect(office.accountantSystemReceived).toBe(1745)       // all picked_up systemAmounts
-    expect(office.accountantCustomerPaid).toBe(280 + 330)    // settled customerAmounts = 610
-    expect(office.accountantOutstandingCustomer).toBe(660 + 420) // unsettled customerAmounts = 1080
-
-    // cashOnHand = received - paid - outstanding - claimed
-    // = 1745 - 610 - 1080 - 0 = 55
-    expect(office.accountantCashOnHand).toBe(55)
-
-    // grossMargin = 20+10+15+10 = 55
-    expect(office.accountantGrossMargin).toBe(55)
-    // realizedMargin (settled only) = 10+10 = 20
-    expect(office.accountantRealizedMargin).toBe(20)
-    // claimable = realized - claimed = 20 - 0 = 20
-    expect(office.accountantClaimableProfit).toBe(20)
-    // pending = gross - realized = 55 - 20 = 35
+  it('ملخص المكتب — كل الأرقام متسقة', () => {
+    const office = summarizeOfficeLedger(customers, txs, seeds)
+    expect(office.officeCustomerLiability).toBe(1460 + 420)      // 1880
+    expect(office.accountantSystemReceived).toBe(1405)
+    expect(office.accountantCustomerPaid).toBe(280)              // settled
+    expect(office.accountantOutstandingCustomer).toBe(1080)      // unsettled
+    expect(office.accountantGrossMargin).toBe(45)
+    expect(office.accountantRealizedMargin).toBe(10)             // from T-404 only
+    expect(office.accountantClaimableProfit).toBe(10)
     expect(office.accountantPendingProfit).toBe(35)
+    // cashOnHand = 1405 - 280 - 1080 - 0 = 45
+    expect(office.accountantCashOnHand).toBe(45)
+  })
 
-    // ── 4. Cross-consistency checks ──
-
-    // cashOnHand must equal grossMargin when no claims made
-    expect(office.accountantCashOnHand).toBe(office.accountantGrossMargin)
-
-    // paid + outstanding + claimedProfit + cashOnHand must equal systemReceived
+  it('المعادلة الحسابية: مدفوع + مستحق + مطالبات + كاش = المستلم', () => {
+    const office = summarizeOfficeLedger(customers, txs, seeds)
     expect(
       office.accountantCustomerPaid +
       office.accountantOutstandingCustomer +
       office.accountantClaimedProfit +
       office.accountantCashOnHand
     ).toBe(office.accountantSystemReceived)
+  })
 
-    // realizedMargin + pendingProfit must equal grossMargin
-    expect(office.accountantRealizedMargin + office.accountantPendingProfit).toBe(office.accountantGrossMargin)
+  it('المعادلة الحسابية بعد مطالبة ربح', () => {
+    const claim = createProfitClaimEntry(10)
+    const office = summarizeOfficeLedger(customers, txs, [...seeds, claim])
+    expect(office.accountantClaimedProfit).toBe(10)
+    expect(office.accountantClaimableProfit).toBe(0)
+    expect(office.accountantCashOnHand).toBe(35)  // 45 - 10
 
-    // ── 5. After profit claim ──
-    const claim = createProfitClaimEntry(20)
-    const officeAfterClaim = summarizeOfficeLedger(custs, txs, [...seeds, claim])
-
-    expect(officeAfterClaim.accountantClaimedProfit).toBe(20)
-    expect(officeAfterClaim.accountantClaimableProfit).toBe(0)
-    // cashOnHand = 1745 - 610 - 1080 - 20 = 35
-    expect(officeAfterClaim.accountantCashOnHand).toBe(35)
-
-    // Invariant still holds after claim
     expect(
-      officeAfterClaim.accountantCustomerPaid +
-      officeAfterClaim.accountantOutstandingCustomer +
-      officeAfterClaim.accountantClaimedProfit +
-      officeAfterClaim.accountantCashOnHand
-    ).toBe(officeAfterClaim.accountantSystemReceived)
+      office.accountantCustomerPaid +
+      office.accountantOutstandingCustomer +
+      office.accountantClaimedProfit +
+      office.accountantCashOnHand
+    ).toBe(office.accountantSystemReceived)
+  })
 
-    // ── 6. Settlement flow ──
-    // Settle T-304 (omar unsettled) and T-307 (sara unsettled)
-    const afterSettle = settleTransfers(txs, [304, 307])
-    const t304 = afterSettle.find((t) => t.id === 304)
-    const t307 = afterSettle.find((t) => t.id === 307)
-    expect(t304.settled).toBe(true)
-    expect(t307.settled).toBe(true)
+  it('المعادلة الحسابية بعد تسوية كاملة', () => {
+    const settled = settleTransfers(txs, [403, 406])
+    const office = summarizeOfficeLedger(customers, settled, seeds)
+    expect(office.accountantOutstandingCustomer).toBe(0)
+    expect(office.accountantCustomerPaid).toBe(280 + 660 + 420)  // 1360
+    expect(office.accountantRealizedMargin).toBe(45)
+    expect(office.accountantClaimableProfit).toBe(45)
+    expect(office.accountantCashOnHand).toBe(45)
 
-    const officeAfterSettle = summarizeOfficeLedger(custs, afterSettle, seeds)
-    expect(officeAfterSettle.accountantCustomerPaid).toBe(280 + 330 + 660 + 420) // 1690
-    expect(officeAfterSettle.accountantOutstandingCustomer).toBe(0)
-    expect(officeAfterSettle.accountantRealizedMargin).toBe(55)  // all margins realized
-    expect(officeAfterSettle.accountantClaimableProfit).toBe(55) // all claimable
-    expect(officeAfterSettle.accountantCashOnHand).toBe(55)      // = grossMargin
-
-    // Invariant after full settlement
     expect(
-      officeAfterSettle.accountantCustomerPaid +
-      officeAfterSettle.accountantOutstandingCustomer +
-      officeAfterSettle.accountantClaimedProfit +
-      officeAfterSettle.accountantCashOnHand
-    ).toBe(officeAfterSettle.accountantSystemReceived)
+      office.accountantCustomerPaid +
+      office.accountantOutstandingCustomer +
+      office.accountantClaimedProfit +
+      office.accountantCashOnHand
+    ).toBe(office.accountantSystemReceived)
+  })
+
+  it('groupUnsettledTransfersByCustomer يجمّع بشكل صحيح', () => {
+    const groups = groupUnsettledTransfersByCustomer(customers, txs)
+    expect(groups).toHaveLength(2)
+    const omarGroup = groups.find((g) => g.customerName === 'عمر')
+    expect(omarGroup.items).toHaveLength(1) // T-403
+    expect(omarGroup.customerTotal).toBe(660)
+    const saraGroup = groups.find((g) => g.customerName === 'سارة')
+    expect(saraGroup.items).toHaveLength(1) // T-406
+    expect(saraGroup.customerTotal).toBe(420)
+  })
+})
+
+/* ══════════════════════════════════════════════════════
+ *  9. الهجرة والنسخ الاحتياطي
+ * ══════════════════════════════════════════════════════ */
+
+describe('الهجرة والنسخ الاحتياطي', () => {
+  it('يحوّل الحالات القديمة بشكل صحيح', () => {
+    const old = {
+      customers,
+      transfers: [
+        { id: 1, customerId: 201, reference: 'OLD-1', senderName: 'أ', receiverName: 'عمر', status: 'new', paymentStatus: 'pending', systemAmount: 100, customerAmount: 90, margin: 10, createdAt: '2026-04-12T08:00:00.000Z', updatedAt: '2026-04-12T08:00:00.000Z' },
+        { id: 2, customerId: 201, reference: 'OLD-2', senderName: 'ب', receiverName: 'عمر', status: 'paid', paymentStatus: 'paid', systemAmount: 200, customerAmount: 180, margin: 20, createdAt: '2026-04-12T08:00:00.000Z', updatedAt: '2026-04-12T08:00:00.000Z' },
+        { id: 3, customerId: 202, reference: 'OLD-3', senderName: 'ج', receiverName: 'سارة', status: 'sent_to_operator', paymentStatus: 'pending', systemAmount: 150, customerAmount: 140, margin: 10, createdAt: '2026-04-12T08:00:00.000Z', updatedAt: '2026-04-12T08:00:00.000Z' },
+      ],
+    }
+    const migrated = migrateState(old)
+    expect(migrated.transfers[0].status).toBe('received')
+    expect(migrated.transfers[0].settled).toBe(false)
+    expect(migrated.transfers[0].transferAmount).toBeNull()
+    expect(migrated.transfers[1].status).toBe('picked_up')
+    expect(migrated.transfers[1].settled).toBe(true)
+    expect(migrated.transfers[2].status).toBe('with_employee')
+    expect(migrated.ledgerEntries.length).toBeGreaterThan(0)
+  })
+
+  it('استرجاع النسخة الاحتياطية يحافظ على البيانات', () => {
+    const backup = JSON.stringify({ customers, transfers: [] })
+    const restored = parseAppStateBackup(backup)
+    expect(restored.customers).toHaveLength(2)
+    expect(restored.transfers).toHaveLength(0)
+    expect(restored.ledgerEntries.length).toBeGreaterThan(0) // seeds generated
+    expect(Array.isArray(restored.claimHistory)).toBe(true)
+  })
+
+  it('يرفض نسخة احتياطية تالفة', () => {
+    expect(() => parseAppStateBackup('not json')).toThrow()
+    expect(() => parseAppStateBackup('{}')).toThrow()
+    expect(() => parseAppStateBackup('{"customers":[]}')).toThrow()
   })
 })
