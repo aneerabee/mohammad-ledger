@@ -105,6 +105,7 @@ export function buildTransferFromDraft(draft, existingTransfers = [], customers 
       issueAt: null,
       reviewHoldAt: null,
       resetAt: null,
+      history: [],
       createdAt: now.toISOString(),
       updatedAt: now.toISOString(),
     },
@@ -137,12 +138,18 @@ export function validateTransition(item, nextStatus) {
 
 /* ── Status transitions ── */
 
+function addHistory(item, field, from, to) {
+  const history = Array.isArray(item.history) ? item.history : []
+  return [...history, { field, from, to, at: new Date().toISOString() }]
+}
+
 export function transitionTransfer(item, nextStatus) {
   const now = new Date().toISOString()
   const next = {
     ...item,
     status: nextStatus,
     updatedAt: now,
+    history: addHistory(item, 'status', item.status, nextStatus),
   }
 
   if (nextStatus === 'with_employee') {
@@ -188,7 +195,12 @@ export function updateAmount(item, field, value) {
   const parsed = value === '' ? null : Number(value)
   if (Number.isNaN(parsed)) return item
 
-  const next = { ...item, [field]: parsed, updatedAt: new Date().toISOString() }
+  const next = {
+    ...item,
+    [field]: parsed,
+    updatedAt: new Date().toISOString(),
+    history: addHistory(item, field, item[field], parsed),
+  }
 
   if (field === 'transferAmount') return next
 
@@ -196,10 +208,21 @@ export function updateAmount(item, field, value) {
 }
 
 export function updateTransferField(item, field, value) {
+  const oldValue = item[field]
   if (field === 'customerId') {
-    return { ...item, customerId: Number(value), updatedAt: new Date().toISOString() }
+    return {
+      ...item,
+      customerId: Number(value),
+      updatedAt: new Date().toISOString(),
+      history: addHistory(item, field, oldValue, Number(value)),
+    }
   }
-  return { ...item, [field]: value, updatedAt: new Date().toISOString() }
+  return {
+    ...item,
+    [field]: value,
+    updatedAt: new Date().toISOString(),
+    history: addHistory(item, field, oldValue, value),
+  }
 }
 
 export function updateCustomerField(item, field, value) {
@@ -270,7 +293,15 @@ export function filterTransfers(transfers, filters, customersById = new Map()) {
     }
     // 'all' shows everything
 
-    return matchSearch && matchStatus && matchCustomer && matchView
+    let matchDate = true
+    if (filters.dateFrom) {
+      matchDate = createdDate >= filters.dateFrom
+    }
+    if (matchDate && filters.dateTo) {
+      matchDate = createdDate <= filters.dateTo
+    }
+
+    return matchSearch && matchStatus && matchCustomer && matchView && matchDate
   })
 }
 
@@ -435,6 +466,7 @@ function migrateTransfer(t) {
     reviewHoldAt: t.reviewHoldAt ?? (newStatus === 'review_hold' ? updatedAt : null),
     resetAt: t.resetAt ?? null,
     transferAmount: t.transferAmount ?? null,
+    history: Array.isArray(t.history) ? t.history : [],
   }
 }
 
@@ -486,6 +518,7 @@ export function parseAppStateBackup(text) {
       issueAt: null,
       reviewHoldAt: null,
       resetAt: null,
+      history: [],
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       ...t,

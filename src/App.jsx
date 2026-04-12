@@ -84,6 +84,8 @@ function App() {
   const [viewMode, setViewMode] = useState('active')
   const [customerFilter, setCustomerFilter] = useState(FILTER_ALL)
   const [sortMode, setSortMode] = useState('smart')
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
   const [storageMode, setStorageMode] = useState(getPersistenceMode())
   const [isHydrated, setIsHydrated] = useState(false)
   const [_loadFailed, setLoadFailed] = useState(false)
@@ -143,11 +145,11 @@ function App() {
   const filteredTransfers = useMemo(() => {
     const filtered = filterTransfers(
       transfers,
-      { searchTerm, statusFilter, viewMode, customerFilter },
+      { searchTerm, statusFilter, viewMode, customerFilter, dateFrom, dateTo },
       customersById,
     )
     return sortTransfers(filtered, sortMode, customersById)
-  }, [customerFilter, customersById, searchTerm, viewMode, sortMode, statusFilter, transfers])
+  }, [customerFilter, customersById, dateFrom, dateTo, searchTerm, viewMode, sortMode, statusFilter, transfers])
 
   const transferSummary = useMemo(
     () => summarizeTransfers(transfers),
@@ -175,13 +177,16 @@ function App() {
   }
 
   function deleteTransfer(id) {
+    if (!window.confirm('هل أنت متأكد من حذف هذه الحوالة؟ لا يمكن التراجع.')) return
     setState((s) => ({
       ...s,
       transfers: s.transfers.filter((t) => t.id !== id),
     }))
+    setFeedback('تم حذف الحوالة.')
   }
 
   function handleSettle(transferIds) {
+    if (!window.confirm(`تأكيد تسوية ${transferIds.length} حوالة؟`)) return
     setState((s) => ({
       ...s,
       transfers: settleTransfers(s.transfers, transferIds),
@@ -194,13 +199,15 @@ function App() {
       setFeedback('لا يوجد ربح متاح للمطالبة الآن.')
       return
     }
+    const amount = officeSummary.accountantClaimableProfit
+    if (!window.confirm(`تأكيد مطالبة ربح بقيمة ${amount.toFixed(2)}؟`)) return
 
-    const entry = createProfitClaimEntry(officeSummary.accountantClaimableProfit)
+    const entry = createProfitClaimEntry(amount)
     setState((s) => ({
       ...s,
       claimHistory: [entry, ...s.claimHistory],
     }))
-    setFeedback(`تم تسجيل Claim ربح بقيمة ${officeSummary.accountantClaimableProfit.toFixed(2)}.`)
+    setFeedback(`تم تسجيل مطالبة ربح بقيمة ${amount.toFixed(2)}.`)
   }
 
   function handleAddCustomer(e) {
@@ -232,6 +239,8 @@ function App() {
     setViewMode('active')
     setCustomerFilter(FILTER_ALL)
     setSortMode('smart')
+    setDateFrom('')
+    setDateTo('')
   }
 
   function exportCsv() {
@@ -255,6 +264,10 @@ function App() {
   async function handleImportBackup(e) {
     const file = e.target.files?.[0]
     if (!file) return
+    if (!window.confirm('استرجاع النسخة الاحتياطية سيستبدل كل البيانات الحالية. هل أنت متأكد؟')) {
+      e.target.value = ''
+      return
+    }
     try {
       const text = await file.text()
       setState(parseAppStateBackup(text))
@@ -347,6 +360,10 @@ function App() {
           setCustomerFilter={setCustomerFilter}
           sortMode={sortMode}
           setSortMode={setSortMode}
+          dateFrom={dateFrom}
+          setDateFrom={setDateFrom}
+          dateTo={dateTo}
+          setDateTo={setDateTo}
           onResetFilters={resetFilters}
           transferSummary={transferSummary}
           onFeedback={setFeedback}

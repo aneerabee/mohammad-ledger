@@ -557,6 +557,57 @@ describe('الهجرة والنسخ الاحتياطي', () => {
     expect(Array.isArray(restored.claimHistory)).toBe(true)
   })
 
+  it('فلتر التاريخ يعمل بشكل صحيح', () => {
+    const customersById = new Map(customers.map((c) => [c.id, c]))
+    const txs = [
+      makeTx({ id: 70, customerId: 201, reference: 'D-1', senderName: 'أ', receiverName: 'عمر', status: 'received', createdAt: '2026-04-10T08:00:00.000Z', updatedAt: '2026-04-10T08:00:00.000Z' }),
+      makeTx({ id: 71, customerId: 201, reference: 'D-2', senderName: 'ب', receiverName: 'عمر', status: 'received', createdAt: '2026-04-11T08:00:00.000Z', updatedAt: '2026-04-11T08:00:00.000Z' }),
+      makeTx({ id: 72, customerId: 201, reference: 'D-3', senderName: 'ج', receiverName: 'عمر', status: 'received', createdAt: '2026-04-12T08:00:00.000Z', updatedAt: '2026-04-12T08:00:00.000Z' }),
+    ]
+    // من 11 فقط
+    const r1 = filterTransfers(txs, { searchTerm: '', statusFilter: 'all', viewMode: 'all', customerFilter: 'all', dateFrom: '2026-04-11', dateTo: '' }, customersById)
+    expect(r1).toHaveLength(2)
+
+    // من 10 إلى 11
+    const r2 = filterTransfers(txs, { searchTerm: '', statusFilter: 'all', viewMode: 'all', customerFilter: 'all', dateFrom: '2026-04-10', dateTo: '2026-04-11' }, customersById)
+    expect(r2).toHaveLength(2)
+
+    // بدون تاريخ = الكل
+    const r3 = filterTransfers(txs, { searchTerm: '', statusFilter: 'all', viewMode: 'all', customerFilter: 'all', dateFrom: '', dateTo: '' }, customersById)
+    expect(r3).toHaveLength(3)
+  })
+
+  it('سجل التدقيق يُسجّل تغييرات الحالة', () => {
+    const t = makeTx({ id: 80, status: 'received', history: [] })
+    const step1 = transitionTransfer(t, 'with_employee')
+    expect(step1.history).toHaveLength(1)
+    expect(step1.history[0].field).toBe('status')
+    expect(step1.history[0].from).toBe('received')
+    expect(step1.history[0].to).toBe('with_employee')
+
+    const step2 = transitionTransfer(step1, 'picked_up')
+    expect(step2.history).toHaveLength(2)
+    expect(step2.history[1].from).toBe('with_employee')
+    expect(step2.history[1].to).toBe('picked_up')
+  })
+
+  it('سجل التدقيق يُسجّل تغييرات المبالغ', () => {
+    const t = makeTx({ id: 81, systemAmount: null, customerAmount: null, history: [] })
+    const step1 = updateAmount(t, 'systemAmount', '500')
+    expect(step1.history).toHaveLength(1)
+    expect(step1.history[0].field).toBe('systemAmount')
+    expect(step1.history[0].from).toBeNull()
+    expect(step1.history[0].to).toBe(500)
+  })
+
+  it('الهجرة تضيف history فارغة للبيانات القديمة', () => {
+    const migrated = migrateState({
+      customers,
+      transfers: [{ id: 1, customerId: 201, reference: 'M-1', senderName: 'أ', receiverName: 'عمر', status: 'new', paymentStatus: 'pending', systemAmount: 100, customerAmount: 90, margin: 10, createdAt: '2026-04-12T08:00:00.000Z', updatedAt: '2026-04-12T08:00:00.000Z' }],
+    })
+    expect(Array.isArray(migrated.transfers[0].history)).toBe(true)
+  })
+
   it('يرفض نسخة احتياطية تالفة', () => {
     expect(() => parseAppStateBackup('not json')).toThrow()
     expect(() => parseAppStateBackup('{}')).toThrow()

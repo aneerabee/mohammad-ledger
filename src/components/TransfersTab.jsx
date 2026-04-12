@@ -56,6 +56,10 @@ export default function TransfersTab({
   setCustomerFilter,
   sortMode,
   setSortMode,
+  dateFrom,
+  setDateFrom,
+  dateTo,
+  setDateTo,
   onResetFilters,
   transferSummary,
   onFeedback,
@@ -138,6 +142,20 @@ export default function TransfersTab({
               <option key={k} value={k}>{v}</option>
             ))}
           </select>
+          <input
+            type="date"
+            className="date-filter"
+            value={dateFrom}
+            onChange={(e) => setDateFrom(e.target.value)}
+            title="من تاريخ"
+          />
+          <input
+            type="date"
+            className="date-filter"
+            value={dateTo}
+            onChange={(e) => setDateTo(e.target.value)}
+            title="إلى تاريخ"
+          />
           <select value={customerFilter} onChange={(e) => setCustomerFilter(e.target.value)}>
             <option value={FILTER_ALL}>كل الزبائن</option>
             {customers.map((c) => (

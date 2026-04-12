@@ -440,6 +440,11 @@ thead th {
   background: rgba(180, 83, 9, 0.08);
 }
 
+.date-filter {
+  min-width: 130px !important;
+  font-size: 0.85rem;
+}
+
 .import-status-select {
   min-width: 110px !important;
   font-weight: 700;
