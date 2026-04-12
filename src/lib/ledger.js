@@ -60,6 +60,7 @@ function createEntry({
 }
 
 export function buildOpeningBalanceEntry(customer) {
+  if (!customer) return null
   const amount = asNumber(customer.openingBalance)
   if (!amount) return null
   return createEntry({
@@ -74,6 +75,7 @@ export function buildOpeningBalanceEntry(customer) {
 }
 
 export function buildLegacySettlementEntry(customer) {
+  if (!customer) return null
   const amount = asNumber(customer.settledTotal)
   if (!amount) return null
   return createEntry({

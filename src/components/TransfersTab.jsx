@@ -571,7 +571,7 @@ function TransferTable({ items, customers, customersById, onPatchTransfer, onDel
                     {isEditing ? (
                       <button
                         className="danger-button"
-                        onClick={() => { onDeleteTransfer(item.id); setEditingId(null) }}
+                        onClick={() => { if (onDeleteTransfer(item.id)) setEditingId(null) }}
                       >
                         حذف
                       </button>

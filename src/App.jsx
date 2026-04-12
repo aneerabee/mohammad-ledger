@@ -177,12 +177,13 @@ function App() {
   }
 
   function deleteTransfer(id) {
-    if (!window.confirm('هل أنت متأكد من حذف هذه الحوالة؟ لا يمكن التراجع.')) return
+    if (!window.confirm('هل أنت متأكد من حذف هذه الحوالة؟ لا يمكن التراجع.')) return false
     setState((s) => ({
       ...s,
       transfers: s.transfers.filter((t) => t.id !== id),
     }))
     setFeedback('تم حذف الحوالة.')
+    return true
   }
 
   function handleSettle(transferIds) {

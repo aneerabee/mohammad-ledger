@@ -49,9 +49,9 @@ export default function SettlementsTab({ customers, transfers, onSettle }) {
 
   function toggleGroup(group) {
     const groupIds = group.items.map((item) => item.id)
-    const allSelected = groupIds.every((id) => selectedIds.has(id))
 
     setSelectedIds((prev) => {
+      const allSelected = groupIds.every((id) => prev.has(id))
       const next = new Set(prev)
       for (const id of groupIds) {
         if (allSelected) next.delete(id)

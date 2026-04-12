@@ -23,11 +23,11 @@ export function createEmptyCustomerDraft() {
 /* ── Normalization ── */
 
 export function normalizeReference(ref) {
-  return ref.trim().toUpperCase()
+  return String(ref ?? '').trim().toUpperCase()
 }
 
 export function normalizeName(name) {
-  return name.trim().replace(/\s+/g, ' ')
+  return String(name ?? '').trim().replace(/\s+/g, ' ')
 }
 
 export function parseMoney(value) {
@@ -265,7 +265,8 @@ export function getUnsettledForCustomer(transfers, customerId) {
 /* ── Filtering & Sorting ── */
 
 function getTodayDate() {
-  return new Date().toISOString().slice(0, 10)
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
 export function filterTransfers(transfers, filters, customersById = new Map()) {
@@ -277,8 +278,8 @@ export function filterTransfers(transfers, filters, customersById = new Map()) {
 
     const matchSearch =
       search === '' ||
-      t.reference.toLowerCase().includes(search) ||
-      t.senderName.toLowerCase().includes(search) ||
+      (t.reference || '').toLowerCase().includes(search) ||
+      (t.senderName || '').toLowerCase().includes(search) ||
       custName.includes(search) ||
       (t.note || '').toLowerCase().includes(search)
 
@@ -339,7 +340,7 @@ export function sortTransfers(transfers, sortMode, customersById = new Map()) {
       )
       return sorted
     case 'sender':
-      sorted.sort((a, b) => a.senderName.localeCompare(b.senderName, 'ar'))
+      sorted.sort((a, b) => (a.senderName || '').localeCompare(b.senderName || '', 'ar'))
       return sorted
     case 'latest':
     default:
@@ -434,7 +435,7 @@ export function summarizeCustomers(customers, transfers, ledgerEntries = []) {
         ledgerEntriesCount: ledger.ledgerEntriesCount,
       }
     })
-    .sort((a, b) => a.name.localeCompare(b.name, 'ar'))
+    .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ar'))
 }
 
 /* ── Serialization ── */
