@@ -138,9 +138,12 @@ export function validateTransition(item, nextStatus) {
 
 /* ── Status transitions ── */
 
+const MAX_HISTORY = 50
+
 function addHistory(item, field, from, to) {
   const history = Array.isArray(item.history) ? item.history : []
-  return [...history, { field, from, to, at: new Date().toISOString() }]
+  const next = [...history, { field, from, to, at: new Date().toISOString() }]
+  return next.length > MAX_HISTORY ? next.slice(-MAX_HISTORY) : next
 }
 
 export function transitionTransfer(item, nextStatus) {
