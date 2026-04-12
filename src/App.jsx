@@ -399,6 +399,7 @@ function App() {
           customerSummary={customerSummary}
           officeSummary={officeSummary}
           claimHistory={claimHistory}
+          customersById={customersById}
           onClaimProfit={handleClaimProfit}
         />
       ) : null}

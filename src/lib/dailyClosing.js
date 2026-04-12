@@ -85,7 +85,11 @@ export function computeDailyClosing(transfers, customerSummary, officeSummary, c
       officeCustomerPaidToday,
       officeProfitRealizedToday,
       claimsValueToday,
-      dayTransfers: createdToday.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
+      createdToday: createdToday.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
+      sentToday,
+      pickedUpToday,
+      issueToday,
+      settledToday,
     },
     accountantSnapshot: {
       cashOnHand: officeSummary.accountantCashOnHand,
