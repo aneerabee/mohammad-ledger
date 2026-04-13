@@ -918,94 +918,222 @@ tbody tr:hover {
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   STATS HERO — animated count-up stat cards
+   STATS HERO V2 — compact pipeline layout
+   Smart, distinctive, space-efficient. One row on desktop, wraps
+   gracefully on mobile. Replaces the old 9-card grid.
    ═══════════════════════════════════════════════════════════════ */
 .stats-hero {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(155px, 1fr));
-  gap: 10px;
-  margin: 10px 0 16px;
+  /* legacy wrapper class kept so the fade-in-up animation selector
+     `.stats-hero { animation: fade-in-up 0.3s ease both }` still applies
+     wherever it's referenced higher in the stylesheet */
 }
-.stats-hero-card {
+.stats-hero-v2 {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: stretch;
+  justify-content: space-between;
+  margin: 8px 0 14px;
+  padding: 10px 12px;
+  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+  animation: fade-in-up 0.3s ease both;
+}
+
+.stats-hero-v2-primary,
+.stats-hero-v2-money {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 12px 14px;
-  background: #fff;
+  flex-wrap: wrap;
+}
+.stats-hero-v2-primary { flex: 1 1 auto; min-width: 0; }
+.stats-hero-v2-money { flex: 0 1 auto; }
+
+/* ── Big total hero ── */
+.stats-total-hero {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  background: #0f172a;
+  color: #fff;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.15);
+  transition: transform 0.2s;
+}
+.stats-total-hero:hover { transform: translateY(-1px); }
+.stats-total-hero-icon { font-size: 1.3rem; opacity: 0.9; }
+.stats-total-hero-body { display: flex; flex-direction: column; line-height: 1; gap: 3px; }
+.stats-total-hero-value {
+  font-size: 1.6rem;
+  font-weight: 800;
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+}
+.stats-total-hero-label {
+  font-size: 0.68rem;
+  color: #cbd5e1;
+  font-weight: 500;
+}
+
+/* ── Lifecycle pipeline ── */
+.stats-pipeline {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 10px;
+  background: #ffffff;
   border: 1px solid #e2e8f0;
   border-radius: 12px;
-  box-shadow: 0 1px 2px rgba(15,23,42,0.04);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+.flow-node {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 10px;
+  min-width: 54px;
+  border-radius: 8px;
+  line-height: 1;
+  transition: background 0.2s, transform 0.2s;
+}
+.flow-node:hover { background: #f8fafc; transform: translateY(-1px); }
+.flow-node-icon { font-size: 0.95rem; margin-bottom: 2px; opacity: 0.85; }
+.flow-node-count {
+  font-size: 1.2rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: #0f172a;
+}
+.flow-node-label {
+  font-size: 0.62rem;
+  color: #64748b;
+  font-weight: 600;
+  margin-top: 2px;
+}
+.flow-node--amber .flow-node-count { color: #d97706; }
+.flow-node--blue .flow-node-count { color: #2563eb; }
+.flow-node--green .flow-node-count { color: #16a34a; }
+
+/* Dimmed zero-state */
+.flow-node--dim .flow-node-count { color: #cbd5e1; }
+.flow-node--dim .flow-node-icon { opacity: 0.35; }
+.flow-node--dim .flow-node-label { color: #94a3b8; }
+
+/* Urgent — for received-waiting-to-be-sent */
+.flow-node--urgent {
+  background: #fef3c7;
+  animation: node-pulse 2.4s ease-in-out infinite;
+}
+@keyframes node-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(217, 119, 6, 0.35); }
+  50%      { box-shadow: 0 0 0 6px rgba(217, 119, 6, 0); }
+}
+
+.flow-arrow {
+  color: #cbd5e1;
+  font-size: 0.9rem;
+  padding: 0 1px;
+  line-height: 1;
+  flex-shrink: 0;
+  user-select: none;
+}
+
+/* ── Alert pills (conditional — hidden when count=0) ── */
+.stats-alerts {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.alert-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  line-height: 1;
+  border: 1px solid;
+}
+.alert-pill strong {
+  font-size: 1rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.alert-pill-label { opacity: 0.85; }
+.alert-pill--red {
+  background: #fee2e2;
+  color: #991b1b;
+  border-color: #fca5a5;
+  animation: urgent-pulse 2.4s ease-in-out infinite;
+}
+.alert-pill--amber {
+  background: #fef3c7;
+  color: #92400e;
+  border-color: #fcd34d;
+}
+@keyframes urgent-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.35); }
+  50%      { box-shadow: 0 0 0 5px rgba(220, 38, 38, 0); }
+}
+
+/* ── Money chips ── */
+.money-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
   transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
   position: relative;
   overflow: hidden;
 }
-.stats-hero-card::before {
+.money-chip::before {
   content: '';
   position: absolute;
-  top: 0;
+  inset-block: 0;
   inset-inline-start: 0;
   width: 3px;
-  height: 100%;
-  background: var(--hero-color, #94a3b8);
-  transition: width 0.2s;
+  background: var(--chip-color, #94a3b8);
 }
-.stats-hero-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 18px rgba(15,23,42,0.10);
-  border-color: var(--hero-color, #cbd5e1);
+.money-chip:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
+  border-color: var(--chip-color, #cbd5e1);
 }
-.stats-hero-card:hover::before { width: 5px; }
-
-.stats-hero-icon {
-  width: 38px;
-  height: 38px;
-  border-radius: 10px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+.money-chip-icon { font-size: 1.1rem; opacity: 0.9; }
+.money-chip-body { display: flex; flex-direction: column; line-height: 1.1; min-width: 0; }
+.money-chip-label { font-size: 0.65rem; color: #64748b; font-weight: 600; }
+.money-chip-value {
   font-size: 1.05rem;
-  background: var(--hero-soft, #f1f5f9);
-  color: var(--hero-color, #64748b);
-  flex-shrink: 0;
-}
-.stats-hero-body {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
-.stats-hero-label {
-  font-size: 0.7rem;
-  color: #64748b;
-  font-weight: 600;
-}
-.stats-hero-value {
-  font-size: 1.18rem;
   font-weight: 800;
-  color: #0f172a;
+  color: var(--chip-color, #0f172a);
   font-variant-numeric: tabular-nums;
-  line-height: 1.1;
+  white-space: nowrap;
 }
+.money-chip--orange { --chip-color: #ea580c; }
+.money-chip--blue { --chip-color: #2563eb; }
+.money-chip--green { --chip-color: #16a34a; }
 
-.stats-hero-card.tone-neutral { --hero-color: #64748b; --hero-soft: #f1f5f9; }
-.stats-hero-card.tone-blue    { --hero-color: #2563eb; --hero-soft: #dbeafe; }
-.stats-hero-card.tone-blue .stats-hero-value { color: #1e40af; }
-.stats-hero-card.tone-amber   { --hero-color: #d97706; --hero-soft: #fef3c7; }
-.stats-hero-card.tone-amber .stats-hero-value { color: #92400e; }
-.stats-hero-card.tone-orange  { --hero-color: #ea580c; --hero-soft: #ffedd5; }
-.stats-hero-card.tone-orange .stats-hero-value { color: #9a3412; }
-.stats-hero-card.tone-red     { --hero-color: #dc2626; --hero-soft: #fee2e2; }
-.stats-hero-card.tone-red .stats-hero-value { color: #991b1b; }
-.stats-hero-card.tone-green   { --hero-color: #16a34a; --hero-soft: #dcfce7; }
-.stats-hero-card.tone-green .stats-hero-value { color: #166534; }
-.stats-hero-card.tone-urgent {
-  border-color: var(--hero-color);
-  box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.15), 0 4px 12px rgba(220, 38, 38, 0.12);
-  animation: urgent-pulse 2.4s ease-in-out infinite;
-}
-@keyframes urgent-pulse {
-  0%, 100% { box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.15), 0 4px 12px rgba(220, 38, 38, 0.12); }
-  50%      { box-shadow: 0 0 0 4px rgba(220, 38, 38, 0.25), 0 6px 18px rgba(220, 38, 38, 0.22); }
+@media (max-width: 720px) {
+  .stats-hero-v2 { padding: 8px; gap: 8px; }
+  .stats-hero-v2-primary, .stats-hero-v2-money { gap: 6px; }
+  .stats-total-hero { padding: 6px 10px; gap: 6px; }
+  .stats-total-hero-value { font-size: 1.35rem; }
+  .stats-pipeline { padding: 4px 6px; }
+  .flow-node { min-width: 46px; padding: 3px 6px; }
+  .flow-node-count { font-size: 1rem; }
+  .flow-node-label { font-size: 0.58rem; }
+  .money-chip { padding: 6px 10px; gap: 6px; }
+  .money-chip-value { font-size: 0.9rem; }
 }
 
 /* ═══════════════════════════════════════════════════════════════
