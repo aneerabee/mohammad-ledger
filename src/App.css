@@ -3880,56 +3880,6 @@ tbody tr:hover {
   box-shadow: 0 3px 8px rgba(61, 122, 93, 0.25);
 }
 
-.segmented {
-  display: inline-flex;
-  gap: 2px;
-  padding: 2px;
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: 9px;
-}
-
-.segmented__btn {
-  border: none;
-  background: transparent;
-  color: var(--ink-soft);
-  padding: 5px 12px;
-  border-radius: 7px;
-  font-weight: 700;
-  font-size: 0.78rem;
-  transition: background 0.15s, color 0.15s, box-shadow 0.15s;
-}
-
-.segmented__btn:hover {
-  color: var(--ink);
-  transform: none;
-  opacity: 1;
-}
-
-.segmented__btn--active {
-  background: var(--surface);
-  color: var(--ink);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
-}
-
-.transfer-form {
-  margin-bottom: 10px;
-}
-
-.transfer-form__grid {
-  display: grid;
-  grid-template-columns:
-    minmax(140px, 1.4fr)
-    minmax(110px, 1fr)
-    minmax(110px, 1fr)
-    minmax(110px, 1fr)
-    minmax(90px, 0.8fr)
-    minmax(90px, 0.8fr)
-    auto;
-  gap: 6px;
-  align-items: center;
-}
-
 .tf-cell {
   position: relative;
   min-width: 0;
@@ -3940,8 +3890,6 @@ tbody tr:hover {
   width: 100%;
   min-width: 0;
 }
-
-.tf-cell--customer { min-width: 0; }
 
 .tf-float-chip {
   position: absolute;
@@ -4268,31 +4216,10 @@ tbody tr:hover {
 
 .advanced-filters > * { min-width: 0; }
 
-@media (max-width: 900px) {
-  .transfer-form__grid {
-    grid-template-columns:
-      minmax(0, 1fr)
-      minmax(0, 1fr)
-      minmax(0, 1fr);
-  }
-  .tf-cell--customer { grid-column: 1 / -1; }
-  .transfer-submit { grid-column: 1 / -1; width: 100%; }
-}
-
 @media (max-width: 720px) {
   .transfer-card__head {
     flex-direction: column;
     align-items: stretch;
     gap: 8px;
   }
-  .segmented {
-    display: flex;
-    width: 100%;
-  }
-  .segmented__btn { flex: 1; }
-  .transfer-form__grid {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  }
-  .tf-cell--customer { grid-column: 1 / -1; }
-  .transfer-submit { grid-column: 1 / -1; width: 100%; }
 }

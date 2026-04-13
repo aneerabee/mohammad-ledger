@@ -5,11 +5,9 @@ import { computeDailyClosing, createDailyClosingRecord, getTodayKey } from './li
 import {
   FILTER_ALL,
   buildCustomerFromDraft,
-  buildTransferFromDraft,
   buildTransfersFromBatchDraft,
   createEmptyCustomerDraft,
   createEmptyTransferBatchDraft,
-  createEmptyTransferDraft,
   filterTransfers,
   migrateState,
   parseAppStateBackup,
@@ -123,7 +121,6 @@ function App() {
     }
     return initial
   })
-  const [transferDraft, setTransferDraft] = useState(createEmptyTransferDraft)
   const [batchTransferDraft, setBatchTransferDraft] = useState(createEmptyTransferBatchDraft)
   const [customerDraft, setCustomerDraft] = useState(createEmptyCustomerDraft)
   const [feedback, setFeedback] = useState('')
@@ -936,19 +933,6 @@ function App() {
     setFeedback(`تم إخفاء الزبون "${customer.name}" — يمكن استعادته من قسم المحذوفات.`)
   }
 
-  function handleAddTransfer(e) {
-    e.preventDefault()
-    if (blockIfReadOnly()) return
-    const result = buildTransferFromDraft(transferDraft, transfers, customers)
-    if (!result.ok) { setFeedback(result.error); return }
-    setState((s) => ({ ...s, transfers: [result.value, ...s.transfers] }))
-    setTransferDraft(createEmptyTransferDraft())
-    setFeedback(
-      result.isDuplicate
-        ? `⚠ تمت الإضافة — رقم الحوالة مكرّر وهي مميّزة بالأحمر للمراجعة`
-        : 'تمت إضافة الحوالة.',
-    )
-  }
 
   function handleAddTransferBatch(e) {
     e.preventDefault()
@@ -1243,11 +1227,8 @@ function App() {
           allTransfers={transfers}
           customers={customers}
           customersById={customersById}
-          transferDraft={transferDraft}
-          setTransferDraft={setTransferDraft}
           batchTransferDraft={batchTransferDraft}
           setBatchTransferDraft={setBatchTransferDraft}
-          onAddTransfer={handleAddTransfer}
           onAddTransferBatch={handleAddTransferBatch}
           onPatchTransfer={patchTransfer}
           onDeleteTransfer={deleteTransfer}

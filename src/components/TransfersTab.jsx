@@ -112,11 +112,8 @@ export default function TransfersTab({
   allTransfers,
   customers,
   customersById,
-  transferDraft,
-  setTransferDraft,
   batchTransferDraft,
   setBatchTransferDraft,
-  onAddTransfer,
   onAddTransferBatch,
   onPatchTransfer,
   onDeleteTransfer,
@@ -147,22 +144,8 @@ export default function TransfersTab({
 }) {
   const [editingId, setEditingId] = useState(null)
   const [settledOpen, setSettledOpen] = useState(false)
-  const [entryMode, setEntryMode] = useState('single')
   const [pickupFlowId, setPickupFlowId] = useState(null)
   const [advancedFiltersOpen, setAdvancedFiltersOpen] = useState(false)
-
-  // Smart validation — the single-entry submit is only enabled when the
-  // minimum required fields are present. Matches what App.jsx expects.
-  const singleMissingField = !transferDraft.customerId
-    ? 'اختر الزبون'
-    : !(transferDraft.senderName || '').trim()
-      ? 'اسم المرسل'
-      : !(transferDraft.receiverName || '').trim()
-        ? 'اسم المستلم'
-        : !(transferDraft.reference || '').trim()
-          ? 'رقم الحوالة'
-          : null
-  const singleFormValid = singleMissingField === null
 
   // Does the user have any non-default filter active? Used to badge the
   // "فلاتر" toggle so filters aren't silently hiding results.
@@ -182,17 +165,6 @@ export default function TransfersTab({
     () => collectNameSuggestions(allTransfers, receivers || [], PERSON_KIND.RECEIVER),
     [allTransfers, receivers],
   )
-
-  // Live single-form warnings for duplicate reference and receiver color
-  const singleRefDuplicate = useMemo(
-    () => (transferDraft.reference || '').trim() !== '' && referenceExists(allTransfers, transferDraft.reference),
-    [allTransfers, transferDraft.reference],
-  )
-  const singleReceiverPreview = useMemo(
-    () => lookupReceiverColor(receiverColorMap, transferDraft.receiverName),
-    [receiverColorMap, transferDraft.receiverName],
-  )
-  const singleReceiverPreviewClass = getReceiverColorClass(singleReceiverPreview.colorLevel)
 
   // Settled transfers for the separate section
   const settledTransfers = allTransfers
@@ -271,111 +243,21 @@ export default function TransfersTab({
                 <span className="transfer-card__title-badge">+</span>
                 <h2>إضافة حوالة</h2>
               </div>
-              <div className="segmented" role="tablist" aria-label="نوع الإدخال">
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={entryMode === 'single'}
-                  className={`segmented__btn${entryMode === 'single' ? ' segmented__btn--active' : ''}`}
-                  onClick={() => setEntryMode('single')}
-                >
-                  حوالة واحدة
-                </button>
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={entryMode === 'batch'}
-                  className={`segmented__btn${entryMode === 'batch' ? ' segmented__btn--active' : ''}`}
-                  onClick={() => setEntryMode('batch')}
-                >
-                  دفعة لنفس الزبون
-                </button>
-              </div>
+              <span className="batch-form__count">
+                {batchTransferDraft.rows.length === 1
+                  ? 'حوالة واحدة'
+                  : `${batchTransferDraft.rows.length} حوالات`}
+              </span>
             </div>
 
-        {entryMode === 'single' ? (
-          <form className="transfer-form" onSubmit={onAddTransfer}>
-            <div className="transfer-form__grid">
-              <div className="tf-cell tf-cell--customer">
-                <CustomerPicker
-                  customers={customers}
-                  value={transferDraft.customerId}
-                  onChange={(customerId) => setTransferDraft((c) => ({ ...c, customerId }))}
-                  placeholder="الزبون"
-                />
-              </div>
-              <div className="tf-cell">
-                <input
-                  list="sender-name-suggestions"
-                  value={transferDraft.senderName}
-                  onChange={(e) => setTransferDraft((c) => ({ ...c, senderName: e.target.value }))}
-                  placeholder="المرسل"
-                />
-              </div>
-              <div className="tf-cell tf-cell--receiver">
-                <input
-                  list="receiver-name-suggestions"
-                  className={singleReceiverPreviewClass ? `input-${singleReceiverPreviewClass}` : ''}
-                  value={transferDraft.receiverName}
-                  onChange={(e) => setTransferDraft((c) => ({ ...c, receiverName: e.target.value }))}
-                  placeholder="المستلم"
-                />
-                {transferDraft.receiverName && (singleReceiverPreview.total > 0 || singleReceiverPreview.isTurkish) ? (
-                  <span className={`tf-float-chip ${singleReceiverPreviewClass || ''}`}>
-                    {singleReceiverPreview.isTurkish ? <span title="مستلم تركي">🇹🇷</span> : null}
-                    {singleReceiverPreview.total > 0 ? <span>{singleReceiverPreview.total}</span> : null}
-                  </span>
-                ) : null}
-              </div>
-              <div className="tf-cell tf-cell--ref">
-                <input
-                  className={singleRefDuplicate ? 'input-duplicate-ref' : ''}
-                  value={transferDraft.reference}
-                  onChange={(e) => setTransferDraft((c) => ({ ...c, reference: e.target.value.toUpperCase() }))}
-                  placeholder="رقم الحوالة"
-                />
-                {singleRefDuplicate ? <span className="tf-float-chip tf-float-chip--warn">⚠</span> : null}
-              </div>
-              <div className="tf-cell">
-                <input
-                  className="money-input"
-                  inputMode="decimal"
-                  value={formatEditableNumber(transferDraft.transferAmount)}
-                  onChange={(e) => setTransferDraft((c) => ({ ...c, transferAmount: normalizeNumberInput(e.target.value) }))}
-                  placeholder="المبلغ"
-                />
-              </div>
-              <div className="tf-cell">
-                <input
-                  className="money-input"
-                  inputMode="decimal"
-                  value={formatEditableNumber(transferDraft.customerAmount)}
-                  onChange={(e) => setTransferDraft((c) => ({ ...c, customerAmount: normalizeNumberInput(e.target.value) }))}
-                  placeholder="للزبون"
-                />
-              </div>
-              <button
-                type="submit"
-                disabled={!singleFormValid}
-                className={`transfer-submit${singleRefDuplicate ? ' transfer-submit--dup' : ''}`}
-                title={singleMissingField ? `المطلوب: ${singleMissingField}` : singleRefDuplicate ? 'رقم مكرّر — سيُحفظ بالأحمر' : 'جاهزة للحفظ'}
-              >
-                {singleRefDuplicate ? '⚠ حفظ' : '＋ حفظ'}
-              </button>
-            </div>
-          </form>
-        ) : (
           <form className="batch-form" onSubmit={onAddTransferBatch}>
             <div className="batch-form__customer">
               <CustomerPicker
                 customers={customers}
                 value={batchTransferDraft.customerId}
                 onChange={(customerId) => setBatchTransferDraft((c) => ({ ...c, customerId }))}
-                placeholder="الزبون"
+                placeholder="اختر الزبون"
               />
-              <span className="batch-form__count">
-                {batchTransferDraft.rows.length} {batchTransferDraft.rows.length === 1 ? 'حوالة' : 'حوالات'}
-              </span>
             </div>
 
             <div className="batch-form__rows">
@@ -440,8 +322,8 @@ export default function TransfersTab({
                       type="button"
                       className="batch-row__delete"
                       onClick={() => removeBatchRow(row.id)}
-                      aria-label={`حذف السطر ${index + 1}`}
-                      title="حذف السطر"
+                      aria-label={`حذف الحوالة ${index + 1}`}
+                      title="حذف هذه الحوالة"
                     >
                       ×
                     </button>
@@ -459,11 +341,12 @@ export default function TransfersTab({
                 ＋ إضافة حوالة أخرى
               </button>
               <button type="submit" className="transfer-submit">
-                حفظ الدفعة
+                {batchTransferDraft.rows.length === 1
+                  ? 'حفظ الحوالة'
+                  : `حفظ ${batchTransferDraft.rows.length} حوالات`}
               </button>
             </div>
           </form>
-        )}
           </>
         )}
 
