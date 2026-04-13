@@ -135,6 +135,16 @@ export default function DailyClosingTab({
           </select>
           <span className="closing-date-label">{formatArabicDate(selectedDate)}</span>
           <div className="closing-header-spacer" />
+          {!usingSavedSnapshot && closing.accountantSnapshot.claimableProfit > 0 ? (
+            <button
+              className="action-btn action-btn--green"
+              onClick={onClaimProfit}
+              title="سحب كل الربح المحقَّق من الحوالات المسوّاة"
+              style={{ fontWeight: 'bold' }}
+            >
+              💰 اسحب الربح ({formatMoney(closing.accountantSnapshot.claimableProfit)})
+            </button>
+          ) : null}
           <button
             className="action-btn action-btn--green"
             disabled={!canSaveClosing}
@@ -163,8 +173,12 @@ export default function DailyClosingTab({
             <strong className="text-blue">{formatMoney(closing.accountantSnapshot.cashOnHand)}</strong>
           </div>
           <div className="closing-kpi closing-kpi--accent">
-            <span>الربح المتحقق</span>
+            <span>الربح المتحقق اليوم</span>
             <strong className="text-green">{formatMoney(daily.officeProfitRealizedToday)}</strong>
+          </div>
+          <div className="closing-kpi closing-kpi--accent">
+            <span>ربح قابل للسحب</span>
+            <strong className="text-green">{formatMoney(closing.accountantSnapshot.claimableProfit)}</strong>
           </div>
         </div>
 

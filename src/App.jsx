@@ -1100,6 +1100,45 @@ function App() {
         <div className="feedback-banner" onClick={() => setFeedback('')}>{feedback}</div>
       ) : null}
 
+      {!isViewerMode && isHydrated && officeSummary.accountantClaimableProfit > 0 ? (
+        <div
+          className="claim-profit-banner"
+          style={{
+            background: 'linear-gradient(90deg, #16a34a, #15803d)',
+            color: '#fff',
+            borderRadius: 8,
+            padding: '12px 16px',
+            margin: '8px 12px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12,
+            flexWrap: 'wrap',
+            boxShadow: '0 2px 8px rgba(22, 163, 74, 0.25)',
+          }}
+        >
+          <span style={{ fontSize: '1.4rem' }}>💰</span>
+          <span style={{ flex: '1 1 auto', minWidth: 0, fontWeight: 'bold' }}>
+            لديك ربح قابل للسحب: <span style={{ fontSize: '1.15rem' }}>{officeSummary.accountantClaimableProfit.toFixed(2)}</span>
+          </span>
+          <button
+            type="button"
+            onClick={handleClaimProfit}
+            style={{
+              background: '#fff',
+              color: '#15803d',
+              border: 'none',
+              borderRadius: 6,
+              padding: '8px 16px',
+              fontWeight: 'bold',
+              cursor: 'pointer',
+              fontSize: '0.95rem',
+            }}
+          >
+            ✋ سحب الربح الآن
+          </button>
+        </div>
+      ) : null}
+
       {pendingUndo ? (
         <div
           className="undo-banner"
