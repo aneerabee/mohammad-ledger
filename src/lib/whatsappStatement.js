@@ -1,4 +1,4 @@
-import { summarizeLedgerByCustomer } from './ledger'
+import { summarizeCustomers } from './transferLogic'
 
 /*
   WhatsApp customer statement generator — PURE functions only.
@@ -92,23 +92,22 @@ export function buildCustomerWhatsappMessage({
     (e) => e && !e.deletedAt && Number(e.customerId) === Number(customer.id),
   )
 
-  // Use the existing ledger math so numbers match the app exactly
-  const summary = summarizeLedgerByCustomer(
-    [customer],
-    activeTransfers,
-    customerLedger,
-  )
-  const bucket = summary.get(customer.id) || {
+  // Use summarizeCustomers so we get the full summary (currentBalance,
+  // settledAmount, unsettledAmount, totals). This is the SAME function
+  // used by the rest of the app, so the numbers match exactly.
+  const summaries = summarizeCustomers([customer], activeTransfers, customerLedger)
+  const summary = summaries.find((s) => s.id === customer.id) || {
     currentBalance: 0,
     settledAmount: 0,
     unsettledAmount: 0,
     transferCount: 0,
     openingOutstandingAmount: 0,
+    openingOutstandingTransferCount: 0,
   }
 
-  const totalTransfers = activeTransfers.length + (customer.openingTransferCount || 0)
-  const owedNow = Math.max(0, bucket.currentBalance)
-  const settledTotal = Math.max(0, bucket.settledAmount)
+  const totalTransfers = (summary.transferCount || 0) + (summary.openingOutstandingTransferCount || 0)
+  const owedNow = Math.max(0, Number(summary.currentBalance) || 0)
+  const settledTotal = Math.max(0, Number(summary.settledAmount) || 0)
 
   // Build the recent-transfers slice — newest first, cap at MAX_RECENT_TRANSFERS
   const recent = [...activeTransfers]

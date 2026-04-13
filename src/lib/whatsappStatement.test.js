@@ -220,4 +220,31 @@ describe('buildCustomerWhatsappMessage', () => {
     // The opening balance appears as part of what's owed
     expect(msg).toContain('5,000')
   })
+
+  /*
+    Regression test: the settled amount must come from a summarize
+    function that actually tracks settled amounts per customer.
+    This test uses isolated reference/amount values so that the
+    settled amount cannot accidentally appear via unrelated context.
+  */
+  it('shows the settled amount as a distinct labeled line — exact amount isolated from other numbers', () => {
+    const customer = mkCustomer({ id: 200, name: 'اختبار التسوية' })
+    // Two settled (totals = 777 + 888 = 1665) and one unsettled (123)
+    const transfers = [
+      mkTransfer({ id: 501, customerId: 200, reference: 'AAA', status: 'picked_up', settled: true, customerAmount: 777, settledAt: '2026-04-13T10:00:00.000Z' }),
+      mkTransfer({ id: 502, customerId: 200, reference: 'BBB', status: 'picked_up', settled: true, customerAmount: 888, settledAt: '2026-04-13T10:00:00.000Z' }),
+      mkTransfer({ id: 503, customerId: 200, reference: 'CCC', status: 'picked_up', settled: false, customerAmount: 123 }),
+    ]
+    const msg = buildCustomerWhatsappMessage({ customer, transfers, ledgerEntries: [] })
+
+    // Find the "استلمت سابقاً" line and check it shows exactly 1,665
+    const settledLineMatch = msg.match(/استلمت سابقاً:\s*([0-9,]+)/)
+    expect(settledLineMatch).not.toBeNull()
+    expect(settledLineMatch[1]).toBe('1,665')
+
+    // And the owed-now line shows exactly 123
+    const owedLineMatch = msg.match(/مستحق لك عندنا الآن:\s*([0-9,]+)/)
+    expect(owedLineMatch).not.toBeNull()
+    expect(owedLineMatch[1]).toBe('123')
+  })
 })

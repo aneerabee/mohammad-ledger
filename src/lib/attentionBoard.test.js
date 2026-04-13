@@ -245,6 +245,70 @@ describe('buildAttentionAlerts — ordering', () => {
   })
 })
 
+describe('buildAttentionAlerts — threshold boundaries (exact)', () => {
+  it('stuck: EXACTLY 48h sent → warning', () => {
+    const sentAt = new Date(NOW.getTime() - 48 * 60 * 60 * 1000).toISOString()
+    const alerts = buildAttentionAlerts({
+      transfers: [mkTransfer({ status: 'with_employee', sentAt })],
+      customers: [mkCustomer()],
+      ledgerEntries: [],
+      officeSummary: { accountantClaimableProfit: 0, officeCustomerLiability: 0 },
+      now: NOW,
+    })
+    const stuck = alerts.find((a) => a.kind === ALERT_KIND.STUCK_WITH_EMPLOYEE)
+    expect(stuck).toBeTruthy()
+    expect(stuck.severity).toBe(ALERT_SEVERITY.WARNING)
+  })
+
+  it('stuck: 47.5h → no alert', () => {
+    const sentAt = new Date(NOW.getTime() - 47.5 * 60 * 60 * 1000).toISOString()
+    const alerts = buildAttentionAlerts({
+      transfers: [mkTransfer({ status: 'with_employee', sentAt })],
+      customers: [mkCustomer()],
+      ledgerEntries: [],
+      officeSummary: { accountantClaimableProfit: 0, officeCustomerLiability: 0 },
+      now: NOW,
+    })
+    const stuck = alerts.find((a) => a.kind === ALERT_KIND.STUCK_WITH_EMPLOYEE)
+    expect(stuck).toBeUndefined()
+  })
+
+  it('stuck: EXACTLY 120h (5 days) → URGENT', () => {
+    const sentAt = new Date(NOW.getTime() - 5 * 24 * 60 * 60 * 1000).toISOString()
+    const alerts = buildAttentionAlerts({
+      transfers: [mkTransfer({ status: 'with_employee', sentAt })],
+      customers: [mkCustomer()],
+      ledgerEntries: [],
+      officeSummary: { accountantClaimableProfit: 0, officeCustomerLiability: 0 },
+      now: NOW,
+    })
+    const stuck = alerts.find((a) => a.kind === ALERT_KIND.STUCK_WITH_EMPLOYEE)
+    expect(stuck.severity).toBe(ALERT_SEVERITY.URGENT)
+  })
+
+  it('issue: EXACTLY 24h → warning; 23h → no alert', () => {
+    const issueAt24 = new Date(NOW.getTime() - 24 * 60 * 60 * 1000).toISOString()
+    const issueAt23 = new Date(NOW.getTime() - 23 * 60 * 60 * 1000).toISOString()
+    const withOne = buildAttentionAlerts({
+      transfers: [mkTransfer({ id: 1, status: 'issue', issueAt: issueAt24 })],
+      customers: [mkCustomer()],
+      ledgerEntries: [],
+      officeSummary: { accountantClaimableProfit: 0, officeCustomerLiability: 0 },
+      now: NOW,
+    })
+    expect(withOne.find((a) => a.kind === ALERT_KIND.UNRESOLVED_ISSUE)).toBeTruthy()
+
+    const withUnder = buildAttentionAlerts({
+      transfers: [mkTransfer({ id: 2, status: 'issue', issueAt: issueAt23 })],
+      customers: [mkCustomer()],
+      ledgerEntries: [],
+      officeSummary: { accountantClaimableProfit: 0, officeCustomerLiability: 0 },
+      now: NOW,
+    })
+    expect(withUnder.find((a) => a.kind === ALERT_KIND.UNRESOLVED_ISSUE)).toBeUndefined()
+  })
+})
+
 describe('buildAttentionAlerts — read-only, pure', () => {
   it('never mutates inputs', () => {
     const transfers = [
