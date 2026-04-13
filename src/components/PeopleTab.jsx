@@ -13,9 +13,14 @@ function PersonTable({
   readOnly = false,
 }) {
   const [query, setQuery] = useState('')
-  const [addDraft, setAddDraft] = useState({ name: '', legacyCount: '' })
+  const [addDraft, setAddDraft] = useState({ name: '', legacyCount: '', isTurkish: false })
   const [editingKey, setEditingKey] = useState(null)
-  const [editDraft, setEditDraft] = useState('')
+  // Edit draft now holds both the numeric count and the Turkish flag
+  const [editDraft, setEditDraft] = useState({ legacyCount: '', isTurkish: false })
+  // Filter: show only Turkish receivers (receiver tab only)
+  const [turkishOnly, setTurkishOnly] = useState(false)
+
+  const isReceiver = kind === PERSON_KIND.RECEIVER
 
   const people = useMemo(
     () => buildPeopleList(transfers, overrides, kind),
@@ -24,41 +29,54 @@ function PersonTable({
 
   const filtered = useMemo(() => {
     const q = query.trim().toLocaleLowerCase('ar')
-    if (!q) return people
-    return people.filter((p) => p.name.toLocaleLowerCase('ar').includes(q))
-  }, [people, query])
+    let list = people
+    if (turkishOnly && isReceiver) {
+      list = list.filter((p) => p.isTurkish)
+    }
+    if (q) {
+      list = list.filter((p) => p.name.toLocaleLowerCase('ar').includes(q))
+    }
+    return list
+  }, [people, query, turkishOnly, isReceiver])
 
   const totalSystem = people.reduce((s, p) => s + p.systemCount, 0)
   const totalLegacy = people.reduce((s, p) => s + p.legacyCount, 0)
   const totalAll = totalSystem + totalLegacy
+  const turkishCount = isReceiver ? people.filter((p) => p.isTurkish).length : 0
 
   function submitAdd(e) {
     e.preventDefault()
     if (!addDraft.name.trim()) return
-    onUpsertPerson({
+    const patch = {
       name: addDraft.name,
       legacyCount: addDraft.legacyCount,
-    })
-    setAddDraft({ name: '', legacyCount: '' })
+    }
+    // Only include isTurkish for receivers (senders never get the flag)
+    if (isReceiver) patch.isTurkish = addDraft.isTurkish
+    onUpsertPerson(patch)
+    setAddDraft({ name: '', legacyCount: '', isTurkish: false })
   }
 
   function startEditLegacy(row) {
     setEditingKey(row.key)
-    setEditDraft(String(row.legacyCount || 0))
+    setEditDraft({
+      legacyCount: String(row.legacyCount || 0),
+      isTurkish: Boolean(row.isTurkish),
+    })
   }
 
   function saveEditLegacy(row) {
-    onUpsertPerson({ name: row.name, legacyCount: editDraft })
+    const patch = { name: row.name, legacyCount: editDraft.legacyCount }
+    if (isReceiver) patch.isTurkish = editDraft.isTurkish
+    onUpsertPerson(patch)
     setEditingKey(null)
-    setEditDraft('')
+    setEditDraft({ legacyCount: '', isTurkish: false })
   }
 
   function cancelEdit() {
     setEditingKey(null)
-    setEditDraft('')
+    setEditDraft({ legacyCount: '', isTurkish: false })
   }
-
-  const isReceiver = kind === PERSON_KIND.RECEIVER
 
   return (
     <div className="people-table-wrap">
@@ -79,11 +97,36 @@ function PersonTable({
               onChange={(e) => setAddDraft((d) => ({ ...d, legacyCount: e.target.value }))}
               placeholder="قديم"
             />
+            {isReceiver ? (
+              <label
+                className="people-turkish-toggle"
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: '0.85rem', cursor: 'pointer', whiteSpace: 'nowrap' }}
+                title="علّم هذا المستلم كمواطن تركي"
+              >
+                <input
+                  type="checkbox"
+                  checked={addDraft.isTurkish}
+                  onChange={(e) => setAddDraft((d) => ({ ...d, isTurkish: e.target.checked }))}
+                />
+                <span>🇹🇷 تركي</span>
+              </label>
+            ) : null}
             <button type="submit" className="action-btn action-btn--blue action-btn--xs">إضافة</button>
           </form>
         )}
 
         <div className="people-toolbar-spacer" />
+
+        {isReceiver ? (
+          <button
+            type="button"
+            onClick={() => setTurkishOnly((v) => !v)}
+            className={`action-btn action-btn--xs ${turkishOnly ? 'action-btn--blue' : 'ghost-button'}`}
+            title={turkishOnly ? 'عرض كل المستلمين' : 'عرض الأتراك فقط'}
+          >
+            🇹🇷 {turkishOnly ? `أتراك فقط (${turkishCount})` : `كل المستلمين · ${turkishCount} تركي`}
+          </button>
+        ) : null}
 
         <input
           className="search-input people-search-input"
@@ -122,15 +165,20 @@ function PersonTable({
                 return (
                   <tr key={row.key}>
                     <td className={`person-name-cell ${colorClass}`}>
-                      <span className="person-name-text">{row.name}</span>
+                      <span className="person-name-text">
+                        {isReceiver && row.isTurkish ? (
+                          <span className="person-flag" title="مستلم تركي" style={{ marginInlineEnd: 4 }}>🇹🇷</span>
+                        ) : null}
+                        {row.name}
+                      </span>
                     </td>
                     <td className="num-col">
                       {isEditing && !readOnly ? (
                         <input
                           className="table-input table-input--sm people-edit-input"
                           inputMode="numeric"
-                          value={editDraft}
-                          onChange={(e) => setEditDraft(e.target.value)}
+                          value={editDraft.legacyCount}
+                          onChange={(e) => setEditDraft((d) => ({ ...d, legacyCount: e.target.value }))}
                           autoFocus
                           onKeyDown={(e) => {
                             if (e.key === 'Enter') saveEditLegacy(row)
@@ -150,7 +198,21 @@ function PersonTable({
                     {readOnly ? null : (
                       <td className="action-col">
                         {isEditing ? (
-                          <div className="action-group">
+                          <div className="action-group" style={{ gap: 6 }}>
+                            {isReceiver ? (
+                              <label
+                                className="person-turkish-inline"
+                                title="علّم هذا المستلم كتركي"
+                                style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: '0.8rem', cursor: 'pointer' }}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={editDraft.isTurkish}
+                                  onChange={(e) => setEditDraft((d) => ({ ...d, isTurkish: e.target.checked }))}
+                                />
+                                <span>🇹🇷</span>
+                              </label>
+                            ) : null}
                             <button
                               className="action-btn action-btn--green action-btn--xs"
                               onClick={() => saveEditLegacy(row)}
@@ -168,7 +230,7 @@ function PersonTable({
                           <button
                             className="action-btn ghost-button action-btn--xs"
                             onClick={() => startEditLegacy(row)}
-                            title="تعديل العدد القديم"
+                            title="تعديل العدد القديم والجنسية"
                           >
                             تعديل
                           </button>

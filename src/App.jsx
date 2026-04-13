@@ -1311,6 +1311,7 @@ function App() {
           customersById={allCustomersById}
           onRestoreTransfer={restoreTransfer}
           onRestoreCustomer={restoreCustomer}
+          receiverColorMap={receiverColorMap}
         />
       ) : null}
 

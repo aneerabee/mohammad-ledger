@@ -109,6 +109,9 @@ export default function IssuesTab({
                             className={`tc-receiver ${receiverClass}`}
                             title={receiverPreview.total > 0 ? `قديم ${receiverPreview.legacyCount} + نظام ${receiverPreview.systemCount} = ${receiverPreview.total}` : undefined}
                           >
+                            {receiverPreview.isTurkish ? (
+                              <span className="receiver-turkish-flag" title="مستلم تركي" style={{ marginInlineEnd: 4 }}>🇹🇷</span>
+                            ) : null}
                             {t.receiverName || '-'}
                             {receiverPreview.total > 0 ? (
                               <span className="tc-receiver-count">{receiverPreview.total}</span>

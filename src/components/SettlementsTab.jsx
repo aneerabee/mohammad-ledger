@@ -179,6 +179,7 @@ export default function SettlementsTab({
           setExpandedEventId={setExpandedEventId}
           hideProfit={hideProfit}
           readOnly={readOnly}
+          receiverColorMap={receiverColorMap}
         />
       ) : groups.length === 0 ? (
         <div className="empty-state issues-empty">
@@ -278,6 +279,9 @@ export default function SettlementsTab({
                             <span className="tc-sender">{item.senderName}</span>
                             <span className="tc-arrow" aria-hidden="true">←</span>
                             <span className={`tc-receiver ${receiverClass}`}>
+                              {receiverPreview.isTurkish ? (
+                                <span className="receiver-turkish-flag" title="مستلم تركي" style={{ marginInlineEnd: 4 }}>🇹🇷</span>
+                              ) : null}
                               {item.receiverName || '-'}
                               {receiverPreview.total > 0 ? (
                                 <span className="tc-receiver-count">{receiverPreview.total}</span>
@@ -355,6 +359,7 @@ function SettlementHistoryView({
   expandedEventId,
   setExpandedEventId,
   hideProfit = false,
+  receiverColorMap = null,
 }) {
   const activeCustomers = useMemo(
     () => customers.filter((c) => !c.deletedAt).sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ar')),
@@ -515,22 +520,30 @@ function SettlementHistoryView({
                             </tr>
                           </thead>
                           <tbody>
-                            {event.items.map((item) => (
-                              <tr key={item.transferId}>
-                                <td className="ref-cell">{item.reference}</td>
-                                <td>{item.senderName || '-'}</td>
-                                <td>{item.receiverName || '-'}</td>
-                                <td className="date-cell">{formatDate(item.pickedUpAt)}</td>
-                                <td>{formatMoney(item.customerAmount)}</td>
-                                {hideProfit ? null : (
-                                  <>
-                                    <td>{formatMoney(item.systemAmount)}</td>
-                                    <td className="text-green">{formatMoney(item.margin)}</td>
-                                  </>
-                                )}
-                                <td>{item.note || '-'}</td>
-                              </tr>
-                            ))}
+                            {event.items.map((item) => {
+                              const itemRecv = lookupReceiverColor(receiverColorMap, item.receiverName)
+                              return (
+                                <tr key={item.transferId}>
+                                  <td className="ref-cell">{item.reference}</td>
+                                  <td>{item.senderName || '-'}</td>
+                                  <td>
+                                    {itemRecv.isTurkish ? (
+                                      <span title="مستلم تركي" style={{ marginInlineEnd: 4 }}>🇹🇷</span>
+                                    ) : null}
+                                    {item.receiverName || '-'}
+                                  </td>
+                                  <td className="date-cell">{formatDate(item.pickedUpAt)}</td>
+                                  <td>{formatMoney(item.customerAmount)}</td>
+                                  {hideProfit ? null : (
+                                    <>
+                                      <td>{formatMoney(item.systemAmount)}</td>
+                                      <td className="text-green">{formatMoney(item.margin)}</td>
+                                    </>
+                                  )}
+                                  <td>{item.note || '-'}</td>
+                                </tr>
+                              )
+                            })}
                           </tbody>
                         </table>
                       </div>

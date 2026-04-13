@@ -262,6 +262,115 @@ describe('upsertPersonOverride', () => {
   })
 })
 
+describe('upsertPersonOverride — Turkish flag', () => {
+  it('stores isTurkish=true when provided on new entry', () => {
+    const next = upsertPersonOverride([], { name: 'أحمد', legacyCount: 2, isTurkish: true })
+    expect(next).toHaveLength(1)
+    expect(next[0].isTurkish).toBe(true)
+  })
+
+  it('defaults isTurkish to false when not provided', () => {
+    const next = upsertPersonOverride([], { name: 'أحمد', legacyCount: 2 })
+    expect(next[0].isTurkish).toBe(false)
+  })
+
+  it('preserves existing isTurkish when updating legacyCount only', () => {
+    const initial = [
+      { id: 'p1', name: 'أحمد', legacyCount: 3, isTurkish: true, createdAt: '2026-04-01', updatedAt: '2026-04-01' },
+    ]
+    const next = upsertPersonOverride(initial, { name: 'أحمد', legacyCount: 10 })
+    expect(next[0].isTurkish).toBe(true)
+    expect(next[0].legacyCount).toBe(10)
+  })
+
+  it('updates isTurkish when explicitly provided on existing entry', () => {
+    const initial = [
+      { id: 'p1', name: 'أحمد', legacyCount: 3, isTurkish: true, createdAt: '2026-04-01', updatedAt: '2026-04-01' },
+    ]
+    const next = upsertPersonOverride(initial, { name: 'أحمد', legacyCount: 3, isTurkish: false })
+    expect(next[0].isTurkish).toBe(false)
+  })
+
+  it('coerces non-boolean isTurkish to strict boolean', () => {
+    const a = upsertPersonOverride([], { name: 'أ', isTurkish: 'yes' })
+    expect(a[0].isTurkish).toBe(true)
+    const b = upsertPersonOverride([], { name: 'ب', isTurkish: 0 })
+    expect(b[0].isTurkish).toBe(false)
+    const c = upsertPersonOverride([], { name: 'ج', isTurkish: 1 })
+    expect(c[0].isTurkish).toBe(true)
+  })
+})
+
+describe('buildReceiverColorMap — Turkish flag', () => {
+  const transfers = [
+    { id: 1, receiverName: 'محمد التركي', createdAt: '2026-04-12T09:00:00.000Z' },
+    { id: 2, receiverName: 'علي السوري', createdAt: '2026-04-12T10:00:00.000Z' },
+    { id: 3, receiverName: 'محمد التركي', createdAt: '2026-04-12T11:00:00.000Z' },
+  ]
+
+  it('returns isTurkish=true for receivers marked Turkish in overrides', () => {
+    const receivers = [
+      { id: 'r1', name: 'محمد التركي', legacyCount: 0, isTurkish: true },
+    ]
+    const map = buildReceiverColorMap(transfers, receivers)
+    const entry = lookupReceiverColor(map, 'محمد التركي')
+    expect(entry.isTurkish).toBe(true)
+  })
+
+  it('returns isTurkish=false for non-Turkish or unmarked receivers', () => {
+    const receivers = [
+      { id: 'r1', name: 'محمد التركي', legacyCount: 0, isTurkish: true },
+    ]
+    const map = buildReceiverColorMap(transfers, receivers)
+    // Unmarked (no override at all)
+    expect(lookupReceiverColor(map, 'علي السوري').isTurkish).toBe(false)
+    // Non-existent receiver
+    expect(lookupReceiverColor(map, 'خالد').isTurkish).toBe(false)
+  })
+
+  it('lookup is normalized (case/whitespace/tashkeel insensitive) but still EXACT name-based', () => {
+    const receivers = [
+      { id: 'r1', name: 'محمد', legacyCount: 0, isTurkish: true },
+    ]
+    const map = buildReceiverColorMap([{ id: 1, receiverName: 'محمد' }], receivers)
+    expect(lookupReceiverColor(map, 'محمد').isTurkish).toBe(true)
+    expect(lookupReceiverColor(map, '  محمد  ').isTurkish).toBe(true) // trimmed
+    // But NOT a different name
+    expect(lookupReceiverColor(map, 'محمد علي').isTurkish).toBe(false)
+    expect(lookupReceiverColor(map, 'أحمد').isTurkish).toBe(false)
+  })
+
+  it('Turkish status is independent of systemCount — even zero-system receivers can be Turkish', () => {
+    const receivers = [
+      { id: 'r1', name: 'خالد', legacyCount: 5, isTurkish: true },
+    ]
+    // No transfers reference خالد
+    const map = buildReceiverColorMap([], receivers)
+    expect(lookupReceiverColor(map, 'خالد').isTurkish).toBe(true)
+  })
+})
+
+describe('buildPeopleList — Turkish flag', () => {
+  it('exposes isTurkish on rows built from overrides', () => {
+    const transfers = [{ id: 1, receiverName: 'محمد' }, { id: 2, receiverName: 'علي' }]
+    const receivers = [
+      { id: 'r1', name: 'محمد', legacyCount: 0, isTurkish: true },
+      { id: 'r2', name: 'علي', legacyCount: 0, isTurkish: false },
+    ]
+    const rows = buildPeopleList(transfers, receivers, PERSON_KIND.RECEIVER)
+    const mohammed = rows.find((r) => r.name === 'محمد')
+    const ali = rows.find((r) => r.name === 'علي')
+    expect(mohammed.isTurkish).toBe(true)
+    expect(ali.isTurkish).toBe(false)
+  })
+
+  it('rows without an override default isTurkish=false', () => {
+    const transfers = [{ id: 1, receiverName: 'ياسر' }]
+    const rows = buildPeopleList(transfers, [], PERSON_KIND.RECEIVER)
+    expect(rows[0].isTurkish).toBe(false)
+  })
+})
+
 describe('findPersonByName', () => {
   it('finds by normalized name', () => {
     const overrides = [{ id: 'p1', name: 'نور' }]

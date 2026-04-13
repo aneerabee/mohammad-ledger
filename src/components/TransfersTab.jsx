@@ -316,9 +316,14 @@ export default function TransfersTab({
               </div>
             ) : null}
 
-            {transferDraft.receiverName && singleReceiverPreview.total > 0 ? (
+            {transferDraft.receiverName && (singleReceiverPreview.total > 0 || singleReceiverPreview.isTurkish) ? (
               <div className={`receiver-preview-badge ${singleReceiverPreviewClass}`}>
-                المستلم <strong>{transferDraft.receiverName}</strong> — قديم: {singleReceiverPreview.legacyCount || 0} · النظام: {singleReceiverPreview.systemCount || 0} · المجموع: <strong>{singleReceiverPreview.total}</strong>
+                {singleReceiverPreview.isTurkish ? <span title="مستلم تركي" style={{ marginInlineEnd: 4 }}>🇹🇷</span> : null}
+                المستلم <strong>{transferDraft.receiverName}</strong>
+                {singleReceiverPreview.total > 0
+                  ? <> — قديم: {singleReceiverPreview.legacyCount || 0} · النظام: {singleReceiverPreview.systemCount || 0} · المجموع: <strong>{singleReceiverPreview.total}</strong></>
+                  : null}
+                {singleReceiverPreview.isTurkish ? <strong style={{ marginInlineStart: 6 }}>· تركي 🇹🇷</strong> : null}
               </div>
             ) : null}
           </>
@@ -578,6 +583,9 @@ export default function TransfersTab({
                             className={`tc-receiver ${settledReceiverClass}`}
                             title={settledReceiverPreview.total > 0 ? `قديم ${settledReceiverPreview.legacyCount} + نظام ${settledReceiverPreview.systemCount} = ${settledReceiverPreview.total}` : undefined}
                           >
+                            {settledReceiverPreview.isTurkish ? (
+                              <span className="receiver-turkish-flag" title="مستلم تركي" style={{ marginInlineEnd: 4 }}>🇹🇷</span>
+                            ) : null}
                             {t.receiverName || '-'}
                             {settledReceiverPreview.total > 0 ? (
                               <span className="tc-receiver-count">{settledReceiverPreview.total}</span>
@@ -800,6 +808,9 @@ function TransferTable({
                     className={`tc-receiver ${receiverColorClass}`}
                     title={receiverPreview.total > 0 ? `قديم ${receiverPreview.legacyCount} + نظام ${receiverPreview.systemCount} = ${receiverPreview.total}` : undefined}
                   >
+                    {receiverPreview.isTurkish ? (
+                      <span className="receiver-turkish-flag" title="مستلم تركي" style={{ marginInlineEnd: 4 }}>🇹🇷</span>
+                    ) : null}
                     {item.receiverName || '-'}
                     {receiverPreview.total > 0 ? (
                       <span className="tc-receiver-count">{receiverPreview.total}</span>

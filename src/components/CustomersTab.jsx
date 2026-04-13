@@ -483,6 +483,9 @@ export default function CustomersTab({
                                   className="receiver-cell-content"
                                   title={receiverPreview.total > 0 ? `قديم ${receiverPreview.legacyCount} + نظام ${receiverPreview.systemCount} = ${receiverPreview.total}` : undefined}
                                 >
+                                  {receiverPreview.isTurkish ? (
+                                    <span title="مستلم تركي" style={{ marginInlineEnd: 4 }}>🇹🇷</span>
+                                  ) : null}
                                   {t.receiverName || '-'}
                                 </span>
                               </td>

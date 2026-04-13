@@ -117,6 +117,7 @@ export function buildPeopleList(transfers = [], overrides = [], kind) {
       name: normalizeName(override.name),
       legacyCount: Math.max(0, Math.trunc(Number(override.legacyCount) || 0)),
       systemCount: 0,
+      isTurkish: Boolean(override.isTurkish),
       hasOverride: true,
       key,
       createdAt: override.createdAt,
@@ -134,6 +135,7 @@ export function buildPeopleList(transfers = [], overrides = [], kind) {
         name: normalizeName(firstTransfer ? firstTransfer[personField(kind)] : key),
         legacyCount: 0,
         systemCount,
+        isTurkish: false,
         hasOverride: false,
         key,
       })
@@ -170,15 +172,16 @@ export function buildReceiverColorMap(transfers = [], receivers = []) {
       colorLevel: row.colorLevel,
       legacyCount: row.legacyCount,
       systemCount: row.systemCount,
+      isTurkish: Boolean(row.isTurkish),
     })
   }
   return map
 }
 
 export function lookupReceiverColor(map, receiverName) {
-  if (!map) return { total: 0, colorLevel: RECEIVER_COLOR_LEVELS.NONE }
+  if (!map) return { total: 0, colorLevel: RECEIVER_COLOR_LEVELS.NONE, isTurkish: false }
   const entry = map.get(nameKey(receiverName))
-  return entry || { total: 0, colorLevel: RECEIVER_COLOR_LEVELS.NONE }
+  return entry || { total: 0, colorLevel: RECEIVER_COLOR_LEVELS.NONE, isTurkish: false }
 }
 
 /**
@@ -191,24 +194,31 @@ export function findPersonByName(overrides = [], name) {
 }
 
 /**
- * Immutably upsert a person override. Pass { name, legacyCount } as patch.
- * If the person exists (by normalized name), update legacyCount; otherwise add.
+ * Immutably upsert a person override. Pass { name, legacyCount, isTurkish } as patch.
+ * If the person exists (by normalized name), update the provided fields; otherwise add.
+ *
+ * - `isTurkish` is only applied when the patch explicitly includes the key.
+ *   Omitting it preserves the existing value on updates (and defaults to false on new).
  */
 export function upsertPersonOverride(overrides = [], patch) {
   const name = normalizeName(patch?.name || '')
   if (!name) return overrides
   const legacyCount = Math.max(0, Math.trunc(Number(patch?.legacyCount) || 0))
+  const hasTurkishKey = patch && Object.prototype.hasOwnProperty.call(patch, 'isTurkish')
+  const turkishValue = hasTurkishKey ? Boolean(patch.isTurkish) : undefined
   const now = new Date().toISOString()
 
   const key = nameKey(name)
   const existingIdx = overrides.findIndex((o) => !o.deletedAt && nameKey(o.name) === key)
 
   if (existingIdx >= 0) {
-    return overrides.map((row, idx) =>
-      idx === existingIdx
-        ? { ...row, name, legacyCount, updatedAt: now }
-        : row,
-    )
+    return overrides.map((row, idx) => {
+      if (idx !== existingIdx) return row
+      const nextRow = { ...row, name, legacyCount, updatedAt: now }
+      if (hasTurkishKey) nextRow.isTurkish = turkishValue
+      else nextRow.isTurkish = Boolean(row.isTurkish) // normalize undefined → false
+      return nextRow
+    })
   }
 
   return [
@@ -217,6 +227,7 @@ export function upsertPersonOverride(overrides = [], patch) {
       id: makeUniqueId(),
       name,
       legacyCount,
+      isTurkish: hasTurkishKey ? turkishValue : false,
       createdAt: now,
       updatedAt: now,
       deletedAt: null,

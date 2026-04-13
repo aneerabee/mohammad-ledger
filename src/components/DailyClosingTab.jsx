@@ -42,6 +42,9 @@ function ReceiverCell({ name, receiverColorMap }) {
         className="receiver-cell-content"
         title={preview.total > 0 ? `قديم ${preview.legacyCount} + نظام ${preview.systemCount} = ${preview.total}` : undefined}
       >
+        {preview.isTurkish ? (
+          <span className="receiver-turkish-flag" title="مستلم تركي" style={{ marginInlineEnd: 4 }}>🇹🇷</span>
+        ) : null}
         {name || '-'}
       </span>
     </td>

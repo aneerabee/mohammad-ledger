@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { statusMeta } from '../sampleData'
 import { formatMoney } from '../lib/formatting'
 import { getCustomerMonogram } from '../lib/customerTheme'
+import { lookupReceiverColor } from '../lib/people'
 
 function formatDate(v) {
   if (!v) return '-'
@@ -20,6 +21,7 @@ export default function TrashTab({
   customersById,
   onRestoreTransfer,
   onRestoreCustomer,
+  receiverColorMap = null,
 }) {
   const [query, setQuery] = useState('')
   const [filter, setFilter] = useState('all') // all | transfers | customers
@@ -152,7 +154,9 @@ export default function TrashTab({
             <span className="trash-section-count">{filteredTransfers.length}</span>
           </h3>
           <div className="trash-card-list">
-            {filteredTransfers.map((t) => (
+            {filteredTransfers.map((t) => {
+              const recv = lookupReceiverColor(receiverColorMap, t.receiverName)
+              return (
               <article key={t.id} className="trash-card trash-card--transfer">
                 <div className="trash-card-body">
                   <div className="trash-card-title">
@@ -165,7 +169,9 @@ export default function TrashTab({
                     <span>
                       {customersById.get(t.customerId)?.name || t.receiverName || '—'}
                       {' · '}
-                      {t.senderName || '—'} ← {t.receiverName || '—'}
+                      {t.senderName || '—'} ←{' '}
+                      {recv.isTurkish ? <span title="مستلم تركي">🇹🇷 </span> : null}
+                      {t.receiverName || '—'}
                     </span>
                     {typeof t.transferAmount === 'number' ? (
                       <span>{formatMoney(t.transferAmount)}</span>
@@ -180,7 +186,8 @@ export default function TrashTab({
                   ↻ استعادة
                 </button>
               </article>
-            ))}
+              )
+            })}
           </div>
         </div>
       ) : null}
