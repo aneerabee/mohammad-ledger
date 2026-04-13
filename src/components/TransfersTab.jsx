@@ -235,12 +235,12 @@ export default function TransfersTab({
       </datalist>
 
       {/* ── Add transfer (hidden in read-only mode) ── */}
-      <section className="panel transfer-card">
+      <section className="panel add-panel">
         {readOnly ? null : (
           <>
-            <div className="transfer-card__head">
-              <div className="transfer-card__title">
-                <span className="transfer-card__title-badge">+</span>
+            <div className="add-panel__head">
+              <div className="add-panel__title">
+                <span className="add-panel__badge">+</span>
                 <h2>إضافة حوالة</h2>
               </div>
               <span className="batch-form__count">

@@ -3842,31 +3842,33 @@ tbody tr:hover {
   font-size: 0.85rem;
 }
 
-/* ─── Redesigned add-transfer card ─── */
-.transfer-card {
+/* ─── Redesigned add-transfer panel ─── */
+.add-panel {
   background: linear-gradient(180deg, var(--surface), color-mix(in srgb, var(--surface) 94%, var(--bg)));
 }
 
-.transfer-card__head {
+.add-panel__head {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  margin-bottom: 10px;
+  margin-bottom: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border);
 }
 
-.transfer-card__title {
+.add-panel__title {
   display: flex;
   align-items: center;
   gap: 8px;
 }
 
-.transfer-card__title h2 {
+.add-panel__title h2 {
   margin: 0;
   font-size: 0.95rem;
 }
 
-.transfer-card__title-badge {
+.add-panel__badge {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -3893,12 +3895,13 @@ tbody tr:hover {
 
 .tf-float-chip {
   position: absolute;
-  top: -7px;
-  inset-inline-end: 6px;
+  top: 50%;
+  inset-inline-end: 8px;
+  transform: translateY(-50%);
   display: inline-flex;
   align-items: center;
   gap: 3px;
-  padding: 1px 6px;
+  padding: 2px 7px;
   border-radius: 999px;
   font-size: 0.64rem;
   font-weight: 800;
@@ -3907,6 +3910,11 @@ tbody tr:hover {
   color: #fff;
   box-shadow: 0 2px 6px rgba(37, 99, 235, 0.3);
   pointer-events: none;
+  z-index: 2;
+}
+
+.tf-cell:has(.tf-float-chip) input {
+  padding-inline-end: 40px;
 }
 
 .tf-float-chip.receiver-level-yellow {
@@ -3955,13 +3963,11 @@ tbody tr:hover {
 }
 
 .batch-form__customer {
-  display: flex;
-  align-items: center;
-  gap: 10px;
+  display: block;
 }
 
 .batch-form__customer .customer-picker {
-  flex: 1;
+  width: 100%;
 }
 
 .batch-form__count {
@@ -3985,25 +3991,31 @@ tbody tr:hover {
 .batch-row {
   display: grid;
   grid-template-columns:
-    28px
-    minmax(110px, 1fr)
-    minmax(110px, 1fr)
-    minmax(110px, 1fr)
-    minmax(90px, 0.8fr)
-    minmax(90px, 0.8fr)
-    28px;
+    30px
+    minmax(100px, 1fr)
+    minmax(100px, 1fr)
+    minmax(100px, 1fr)
+    minmax(88px, 0.8fr)
+    minmax(88px, 0.8fr)
+    30px;
   gap: 6px;
   align-items: center;
-  padding: 6px;
+  padding: 7px 8px;
   border: 1px solid var(--border);
   border-radius: 10px;
-  background: color-mix(in srgb, var(--surface) 97%, var(--bg));
-  transition: border-color 0.15s, box-shadow 0.15s;
+  background: var(--bg);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.02);
+  transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
+}
+
+.batch-row:hover {
+  background: var(--surface);
 }
 
 .batch-row:focus-within {
-  border-color: color-mix(in srgb, var(--blue) 40%, var(--border));
-  box-shadow: 0 0 0 3px rgba(63, 102, 128, 0.06);
+  border-color: color-mix(in srgb, var(--blue) 45%, var(--border));
+  box-shadow: 0 0 0 3px rgba(63, 102, 128, 0.08);
+  background: var(--surface);
 }
 
 .batch-row__index {
@@ -4217,7 +4229,7 @@ tbody tr:hover {
 .advanced-filters > * { min-width: 0; }
 
 @media (max-width: 720px) {
-  .transfer-card__head {
+  .add-panel__head {
     flex-direction: column;
     align-items: stretch;
     gap: 8px;
