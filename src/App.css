@@ -312,6 +312,15 @@ body {
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
 }
 
+/* When a panel contains an open customer picker, promote its stacking
+   order so the popover can visually overlap subsequent sibling panels.
+   Without this, the picker popover would be clipped by the next .panel
+   which comes later in DOM order and wins the stacking race. */
+.panel:has(.customer-picker--open) {
+  z-index: 100;
+  position: relative;
+}
+
 .customer-picker {
   position: relative;
   min-width: 0;
@@ -320,7 +329,7 @@ body {
 }
 
 .customer-picker--open {
-  z-index: 60;
+  z-index: 200;
 }
 
 .customer-picker-trigger {
@@ -358,7 +367,7 @@ body {
   inset-inline-end: 0;
   inset-inline-start: auto;
   top: calc(100% + 6px);
-  z-index: 80;
+  z-index: 300;
   display: grid;
   gap: 6px;
   padding: 8px;
@@ -1122,6 +1131,74 @@ tbody tr:hover {
 .money-chip--orange { --chip-color: #ea580c; }
 .money-chip--blue { --chip-color: #2563eb; }
 .money-chip--green { --chip-color: #16a34a; }
+
+/* ── Status chip (for non-money counts like "awaiting settlement") ── */
+.status-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
+  position: relative;
+  overflow: hidden;
+}
+.status-chip::before {
+  content: '';
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  width: 3px;
+  background: var(--chip-color, #94a3b8);
+}
+.status-chip:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
+  border-color: var(--chip-color, #cbd5e1);
+}
+.status-chip-icon {
+  font-size: 1.1rem;
+  opacity: 0.9;
+}
+.status-chip-body {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.1;
+  min-width: 0;
+}
+.status-chip-label {
+  font-size: 0.65rem;
+  color: #64748b;
+  font-weight: 600;
+}
+.status-chip-value {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: var(--chip-color, #0f172a);
+  font-variant-numeric: tabular-nums;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  white-space: nowrap;
+}
+.status-chip-unit {
+  font-size: 0.65rem;
+  font-weight: 500;
+  color: #94a3b8;
+}
+.status-chip--amber { --chip-color: #d97706; }
+.status-chip--urgent {
+  background: #fef3c7;
+  border-color: #fcd34d;
+  animation: status-urgent 2.4s ease-in-out infinite;
+}
+@keyframes status-urgent {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(217, 119, 6, 0.3); }
+  50%      { box-shadow: 0 0 0 6px rgba(217, 119, 6, 0); }
+}
 
 @media (max-width: 720px) {
   .stats-hero-v2 { padding: 8px; gap: 8px; }

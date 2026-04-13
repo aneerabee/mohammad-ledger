@@ -17,13 +17,19 @@ import { useCountUp } from '../lib/useCountUp'
     - Viewer mode hides office-internal money cards and swaps labels
 */
 
+/*
+  Display money as a full integer with locale thousand separators.
+  Fractions below 1 are hidden — if the rounded value is 0 we show "0".
+  No k/M abbreviations — the user wants to see the real number always.
+*/
 function formatMoney(value) {
   const n = Number(value) || 0
-  const abs = Math.abs(n)
-  if (abs >= 1000000) return (n / 1000000).toFixed(1) + 'M'
-  if (abs >= 10000) return Math.round(n / 1000) + 'k'
-  if (abs >= 1000) return (n / 1000).toFixed(1) + 'k'
-  return String(Math.round(n))
+  const rounded = Math.round(n)
+  try {
+    return rounded.toLocaleString('en-US')
+  } catch {
+    return String(rounded)
+  }
 }
 
 function FlowNode({ icon, count, label, tone, urgent = false, isLast = false }) {
@@ -56,6 +62,30 @@ function AlertPill({ tone, icon, count, label }) {
       <span aria-hidden="true">{icon}</span>
       <strong>{Math.round(animated)}</strong>
       <span className="alert-pill-label">{label}</span>
+    </div>
+  )
+}
+
+/*
+  StatusChip — dedicated chip for a named count with icon + stacked label.
+  Looks like the money chip but for integer counts, so the visual
+  hierarchy stays coherent across the whole stats hero.
+*/
+function StatusChip({ icon, label, count, tone, urgent = false }) {
+  const animated = useCountUp(count, 650)
+  return (
+    <div
+      className={`status-chip status-chip--${tone} ${urgent ? 'status-chip--urgent' : ''}`}
+      title={`${label}: ${count}`}
+    >
+      <span className="status-chip-icon" aria-hidden="true">{icon}</span>
+      <div className="status-chip-body">
+        <span className="status-chip-label">{label}</span>
+        <strong className="status-chip-value">
+          {Math.round(animated)}
+          <span className="status-chip-unit">{count === 1 ? 'حوالة' : 'حوالة'}</span>
+        </strong>
+      </div>
     </div>
   )
 }
@@ -139,19 +169,23 @@ export default function StatsHero({
           />
         </div>
 
-        {hasIssues || hasUnsettled ? (
+        {hasIssues ? (
           <div className="stats-alerts">
-            {hasIssues ? (
-              <AlertPill tone="red" icon="⚠" count={issueCount} label="مشاكل" />
-            ) : null}
-            {hasUnsettled ? (
-              <AlertPill tone="amber" icon="⏳" count={unsettledCount} label="للتسوية" />
-            ) : null}
+            <AlertPill tone="red" icon="⚠" count={issueCount} label="مشاكل" />
           </div>
         ) : null}
       </div>
 
       <div className="stats-hero-v2-money">
+        {hasUnsettled ? (
+          <StatusChip
+            icon="⏳"
+            label="بانتظار التسوية"
+            count={unsettledCount}
+            tone="amber"
+            urgent
+          />
+        ) : null}
         {viewerMode ? (
           <>
             <MoneyChip
