@@ -257,10 +257,10 @@ describe('بناء الزبائن والحوالات', () => {
     expect(r.value).toHaveLength(1)
   })
 
-  it('ينشئ مسودة دفعة جاهزة بعدة صفوف فارغة', () => {
+  it('ينشئ مسودة دفعة جاهزة بصف واحد فارغ', () => {
     const draft = createEmptyTransferBatchDraft()
     expect(draft.customerId).toBe('')
-    expect(draft.rows).toHaveLength(4)
+    expect(draft.rows).toHaveLength(1)
   })
 })
 

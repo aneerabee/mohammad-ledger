@@ -47,7 +47,7 @@ export function createEmptyTransferBatchRow() {
 export function createEmptyTransferBatchDraft() {
   return {
     customerId: '',
-    rows: Array.from({ length: 4 }, () => createEmptyTransferBatchRow()),
+    rows: [createEmptyTransferBatchRow()],
   }
 }
 

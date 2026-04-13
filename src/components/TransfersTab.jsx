@@ -365,93 +365,102 @@ export default function TransfersTab({
             </div>
           </form>
         ) : (
-          <form className="batch-transfer-form" onSubmit={onAddTransferBatch}>
-            <div className="batch-transfer-head">
+          <form className="batch-form" onSubmit={onAddTransferBatch}>
+            <div className="batch-form__customer">
               <CustomerPicker
                 customers={customers}
                 value={batchTransferDraft.customerId}
                 onChange={(customerId) => setBatchTransferDraft((c) => ({ ...c, customerId }))}
-                placeholder="اختر الزبون"
+                placeholder="الزبون"
               />
-              <div className="batch-transfer-actions">
-                <button
-                  type="button"
-                  className="ghost-button ghost-button--muted"
-                  onClick={addBatchRow}
-                >
-                  إضافة سطر
-                </button>
-                <button type="submit">حفظ الدفعة</button>
-              </div>
+              <span className="batch-form__count">
+                {batchTransferDraft.rows.length} {batchTransferDraft.rows.length === 1 ? 'حوالة' : 'حوالات'}
+              </span>
             </div>
 
-            <div className="batch-grid">
-              <div className="batch-grid-head">#</div>
-              <div className="batch-grid-head">اسم المرسل</div>
-              <div className="batch-grid-head">اسم المستلم</div>
-              <div className="batch-grid-head">رقم الحوالة</div>
-              <div className="batch-grid-head">مبلغ الحوالة</div>
-              <div className="batch-grid-head">كم بنعطوه</div>
-              <div className="batch-grid-head">حذف</div>
-
+            <div className="batch-form__rows">
               {batchTransferDraft.rows.map((row, index) => {
                 const rowDup = (row.reference || '').trim() !== '' && referenceExists(allTransfers, row.reference)
                 const rowReceiverPreview = lookupReceiverColor(receiverColorMap, row.receiverName)
                 const rowReceiverClass = getReceiverColorClass(rowReceiverPreview.colorLevel)
                 return (
-                <div className="batch-grid-row" key={row.id}>
-                  <div className="batch-grid-index">{index + 1}</div>
-                  <input
-                    list="sender-name-suggestions"
-                    value={row.senderName}
-                    onChange={(e) => updateBatchRow(row.id, 'senderName', e.target.value)}
-                    placeholder="المرسل"
-                  />
-                  <input
-                    list="receiver-name-suggestions"
-                    className={rowReceiverClass ? `input-${rowReceiverClass}` : ''}
-                    value={row.receiverName}
-                    onChange={(e) => updateBatchRow(row.id, 'receiverName', e.target.value)}
-                    placeholder="المستلم"
-                    title={rowReceiverPreview.total > 0 ? `قديم ${rowReceiverPreview.legacyCount} + نظام ${rowReceiverPreview.systemCount} = ${rowReceiverPreview.total}` : undefined}
-                  />
-                  <input
-                    className={rowDup ? 'input-duplicate-ref' : ''}
-                    value={row.reference}
-                    onChange={(e) => updateBatchRow(row.id, 'reference', e.target.value.toUpperCase())}
-                    placeholder="رقم الحوالة"
-                    title={rowDup ? 'رقم الحوالة موجود مسبقاً' : undefined}
-                  />
-                  <input
-                    className="money-input"
-                    inputMode="decimal"
-                    value={formatEditableNumber(row.transferAmount)}
-                    onChange={(e) => updateBatchRow(row.id, 'transferAmount', normalizeNumberInput(e.target.value))}
-                    placeholder="اختياري"
-                  />
-                  <input
-                    className="money-input"
-                    inputMode="decimal"
-                    value={formatEditableNumber(row.customerAmount)}
-                    onChange={(e) => updateBatchRow(row.id, 'customerAmount', normalizeNumberInput(e.target.value))}
-                    placeholder="اختياري"
-                  />
-                  <button
-                    type="button"
-                    className="ghost-button ghost-button--small"
-                    onClick={() => removeBatchRow(row.id)}
-                    aria-label={`حذف السطر ${index + 1}`}
-                  >
-                    حذف
-                  </button>
-                </div>
+                  <div className="batch-row" key={row.id}>
+                    <span className="batch-row__index">{index + 1}</span>
+                    <div className="tf-cell">
+                      <input
+                        list="sender-name-suggestions"
+                        value={row.senderName}
+                        onChange={(e) => updateBatchRow(row.id, 'senderName', e.target.value)}
+                        placeholder="المرسل"
+                      />
+                    </div>
+                    <div className="tf-cell">
+                      <input
+                        list="receiver-name-suggestions"
+                        className={rowReceiverClass ? `input-${rowReceiverClass}` : ''}
+                        value={row.receiverName}
+                        onChange={(e) => updateBatchRow(row.id, 'receiverName', e.target.value)}
+                        placeholder="المستلم"
+                      />
+                      {row.receiverName && (rowReceiverPreview.total > 0 || rowReceiverPreview.isTurkish) ? (
+                        <span className={`tf-float-chip ${rowReceiverClass || ''}`}>
+                          {rowReceiverPreview.isTurkish ? <span title="مستلم تركي">🇹🇷</span> : null}
+                          {rowReceiverPreview.total > 0 ? <span>{rowReceiverPreview.total}</span> : null}
+                        </span>
+                      ) : null}
+                    </div>
+                    <div className="tf-cell">
+                      <input
+                        className={rowDup ? 'input-duplicate-ref' : ''}
+                        value={row.reference}
+                        onChange={(e) => updateBatchRow(row.id, 'reference', e.target.value.toUpperCase())}
+                        placeholder="رقم الحوالة"
+                      />
+                      {rowDup ? <span className="tf-float-chip tf-float-chip--warn">⚠</span> : null}
+                    </div>
+                    <div className="tf-cell">
+                      <input
+                        className="money-input"
+                        inputMode="decimal"
+                        value={formatEditableNumber(row.transferAmount)}
+                        onChange={(e) => updateBatchRow(row.id, 'transferAmount', normalizeNumberInput(e.target.value))}
+                        placeholder="المبلغ"
+                      />
+                    </div>
+                    <div className="tf-cell">
+                      <input
+                        className="money-input"
+                        inputMode="decimal"
+                        value={formatEditableNumber(row.customerAmount)}
+                        onChange={(e) => updateBatchRow(row.id, 'customerAmount', normalizeNumberInput(e.target.value))}
+                        placeholder="للزبون"
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      className="batch-row__delete"
+                      onClick={() => removeBatchRow(row.id)}
+                      aria-label={`حذف السطر ${index + 1}`}
+                      title="حذف السطر"
+                    >
+                      ×
+                    </button>
+                  </div>
                 )
               })}
             </div>
-            <div className="batch-transfer-hint">
-              <span>كل سطر = حوالة ويسترن واحدة لنفس الزبون.</span>
-              <span>الحقول المطلوبة: اسم المرسل واسم المستلم ورقم الحوالة.</span>
-              <span>المبلغان اختياريان ويمكن تعبئتهما لاحقًا.</span>
+
+            <div className="batch-form__actions">
+              <button
+                type="button"
+                className="batch-add-row"
+                onClick={addBatchRow}
+              >
+                ＋ إضافة حوالة أخرى
+              </button>
+              <button type="submit" className="transfer-submit">
+                حفظ الدفعة
+              </button>
             </div>
           </form>
         )}
