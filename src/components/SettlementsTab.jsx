@@ -207,7 +207,9 @@ export default function SettlementsTab({
                   <div className="settle-identity">
                     <h3 className="settle-customer-name">{group.customerName}</h3>
                     <div className="settle-progress-text">
-                      {selectedCount} / {groupIds.length} محدّدة
+                      {readOnly
+                        ? `${groupIds.length} حوالة`
+                        : `${selectedCount} / ${groupIds.length} محدّدة`}
                     </div>
                   </div>
                   <div className="settle-totals">

@@ -425,12 +425,14 @@ export default function TransfersTab({
               <option key={k} value={k}>{v}</option>
             ))}
           </select>
-          <select className="filter-select" value={customerFilter} onChange={(e) => setCustomerFilter(e.target.value)}>
-            <option value={FILTER_ALL}>كل الزبائن</option>
-            {customers.map((c) => (
-              <option key={c.id} value={c.id}>{c.name}</option>
-            ))}
-          </select>
+          {readOnly && customers.length <= 1 ? null : (
+            <select className="filter-select" value={customerFilter} onChange={(e) => setCustomerFilter(e.target.value)}>
+              <option value={FILTER_ALL}>كل الزبائن</option>
+              {customers.map((c) => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+          )}
           <select className="filter-select" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
             <option value={FILTER_ALL}>كل الحالات</option>
             {statusOrder.map((s) => (
