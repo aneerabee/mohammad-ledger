@@ -32,6 +32,7 @@ export default function StatsHero({
   return (
     <section className="stats-hero">
       <StatCard icon="📋" label="الحوالات" value={transferSummary.total} tone="neutral" />
+      <StatCard icon="📥" label="جديدة وصلت" value={transferSummary.receivedCount} tone="amber" urgent={transferSummary.receivedCount > 0} />
       <StatCard icon="➤" label="عند الموظف" value={transferSummary.withEmployeeCount} tone="blue" />
       <StatCard icon="⏸" label="مراجعة لاحقة" value={transferSummary.reviewHoldCount} tone="amber" />
       <StatCard icon="⚠" label="مشاكل" value={issueCount} tone="red" urgent={issueCount > 0} />
