@@ -149,6 +149,30 @@ export default function TransfersTab({
   const [settledOpen, setSettledOpen] = useState(false)
   const [entryMode, setEntryMode] = useState('single')
   const [pickupFlowId, setPickupFlowId] = useState(null)
+  const [advancedFiltersOpen, setAdvancedFiltersOpen] = useState(false)
+
+  // Smart validation — the single-entry submit is only enabled when the
+  // minimum required fields are present. Matches what App.jsx expects.
+  const singleMissingField = !transferDraft.customerId
+    ? 'اختر الزبون'
+    : !(transferDraft.senderName || '').trim()
+      ? 'اسم المرسل'
+      : !(transferDraft.receiverName || '').trim()
+        ? 'اسم المستلم'
+        : !(transferDraft.reference || '').trim()
+          ? 'رقم الحوالة'
+          : null
+  const singleFormValid = singleMissingField === null
+
+  // Does the user have any non-default filter active? Used to badge the
+  // "فلاتر" toggle so filters aren't silently hiding results.
+  const advancedFiltersActive =
+    statusFilter !== FILTER_ALL ||
+    customerFilter !== FILTER_ALL ||
+    viewMode !== 'active' ||
+    sortMode !== 'smart' ||
+    Boolean(dateFrom) ||
+    Boolean(dateTo)
 
   const senderSuggestions = useMemo(
     () => collectNameSuggestions(allTransfers, senders || [], PERSON_KIND.SENDER),
@@ -239,94 +263,139 @@ export default function TransfersTab({
       </datalist>
 
       {/* ── Add transfer (hidden in read-only mode) ── */}
-      <section className="panel">
+      <section className="panel transfer-card">
         {readOnly ? null : (
           <>
-            <div className="panel-head compact">
-              <h2>إضافة حوالة</h2>
-            </div>
-
-            <div className="entry-mode-toggle">
-              <button
-                type="button"
-                className={entryMode === 'single' ? 'entry-mode-btn entry-mode-btn--active' : 'entry-mode-btn'}
-                onClick={() => setEntryMode('single')}
-              >
-                حوالة واحدة
-              </button>
-              <button
-                type="button"
-                className={entryMode === 'batch' ? 'entry-mode-btn entry-mode-btn--active' : 'entry-mode-btn'}
-                onClick={() => setEntryMode('batch')}
-              >
-                عدة حوالات لنفس الزبون
-              </button>
+            <div className="transfer-card__head">
+              <div className="transfer-card__title">
+                <span className="transfer-card__title-badge">+</span>
+                <h2>إضافة حوالة</h2>
+              </div>
+              <div className="segmented" role="tablist" aria-label="نوع الإدخال">
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={entryMode === 'single'}
+                  className={`segmented__btn${entryMode === 'single' ? ' segmented__btn--active' : ''}`}
+                  onClick={() => setEntryMode('single')}
+                >
+                  حوالة واحدة
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={entryMode === 'batch'}
+                  className={`segmented__btn${entryMode === 'batch' ? ' segmented__btn--active' : ''}`}
+                  onClick={() => setEntryMode('batch')}
+                >
+                  دفعة لنفس الزبون
+                </button>
+              </div>
             </div>
 
         {entryMode === 'single' ? (
-          <>
-            <form className="inline-form" onSubmit={onAddTransfer}>
-              <CustomerPicker
-                customers={customers}
-                value={transferDraft.customerId}
-                onChange={(customerId) => setTransferDraft((c) => ({ ...c, customerId }))}
-                placeholder="اختر الزبون"
-              />
-              <input
-                list="sender-name-suggestions"
-                value={transferDraft.senderName}
-                onChange={(e) => setTransferDraft((c) => ({ ...c, senderName: e.target.value }))}
-                placeholder="اسم المرسل"
-              />
-              <input
-                list="receiver-name-suggestions"
-                className={singleReceiverPreviewClass ? `input-${singleReceiverPreviewClass}` : ''}
-                value={transferDraft.receiverName}
-                onChange={(e) => setTransferDraft((c) => ({ ...c, receiverName: e.target.value }))}
-                placeholder="اسم المستلم"
-              />
-              <input
-                className={singleRefDuplicate ? 'input-duplicate-ref' : ''}
-                value={transferDraft.reference}
-                onChange={(e) => setTransferDraft((c) => ({ ...c, reference: e.target.value.toUpperCase() }))}
-                placeholder="رقم الحوالة"
-              />
-              <input
-                className="money-input"
-                inputMode="decimal"
-                value={formatEditableNumber(transferDraft.transferAmount)}
-                onChange={(e) => setTransferDraft((c) => ({ ...c, transferAmount: normalizeNumberInput(e.target.value) }))}
-                placeholder="مبلغ الحوالة"
-              />
-              <input
-                className="money-input"
-                inputMode="decimal"
-                value={formatEditableNumber(transferDraft.customerAmount)}
-                onChange={(e) => setTransferDraft((c) => ({ ...c, customerAmount: normalizeNumberInput(e.target.value) }))}
-                placeholder="كم بنعطوه"
-              />
-              <button type="submit" className={singleRefDuplicate ? 'btn-dup-accept' : ''}>
-                {singleRefDuplicate ? '⚠ إضافة حوالة مكرّرة' : 'إضافة حوالة'}
+          <form className="transfer-form" onSubmit={onAddTransfer}>
+            <div className="transfer-form__row transfer-form__row--customer">
+              <div className="transfer-form__field transfer-form__field--wide">
+                <label className="transfer-form__label">الزبون</label>
+                <CustomerPicker
+                  customers={customers}
+                  value={transferDraft.customerId}
+                  onChange={(customerId) => setTransferDraft((c) => ({ ...c, customerId }))}
+                  placeholder="اختر الزبون"
+                />
+              </div>
+            </div>
+
+            <div className="transfer-form__row transfer-form__row--people">
+              <div className="transfer-form__field">
+                <label className="transfer-form__label">المرسل</label>
+                <input
+                  list="sender-name-suggestions"
+                  value={transferDraft.senderName}
+                  onChange={(e) => setTransferDraft((c) => ({ ...c, senderName: e.target.value }))}
+                  placeholder="اسم المرسل"
+                />
+              </div>
+              <div className="transfer-form__field">
+                <label className="transfer-form__label">
+                  المستلم
+                  {transferDraft.receiverName && (singleReceiverPreview.total > 0 || singleReceiverPreview.isTurkish) ? (
+                    <span className={`receiver-inline-hint ${singleReceiverPreviewClass || ''}`}>
+                      {singleReceiverPreview.isTurkish ? <span title="مستلم تركي">🇹🇷</span> : null}
+                      {singleReceiverPreview.total > 0 ? (
+                        <span>{singleReceiverPreview.total} سابقة</span>
+                      ) : null}
+                    </span>
+                  ) : null}
+                </label>
+                <input
+                  list="receiver-name-suggestions"
+                  className={singleReceiverPreviewClass ? `input-${singleReceiverPreviewClass}` : ''}
+                  value={transferDraft.receiverName}
+                  onChange={(e) => setTransferDraft((c) => ({ ...c, receiverName: e.target.value }))}
+                  placeholder="اسم المستلم"
+                />
+              </div>
+            </div>
+
+            <div className="transfer-form__row transfer-form__row--details">
+              <div className="transfer-form__field">
+                <label className="transfer-form__label">
+                  رقم الحوالة
+                  {singleRefDuplicate ? (
+                    <span className="field-badge field-badge--warn">⚠ مكرّر</span>
+                  ) : null}
+                </label>
+                <input
+                  className={singleRefDuplicate ? 'input-duplicate-ref' : ''}
+                  value={transferDraft.reference}
+                  onChange={(e) => setTransferDraft((c) => ({ ...c, reference: e.target.value.toUpperCase() }))}
+                  placeholder="رقم الحوالة"
+                />
+              </div>
+              <div className="transfer-form__field transfer-form__field--money">
+                <label className="transfer-form__label">مبلغ الحوالة</label>
+                <input
+                  className="money-input"
+                  inputMode="decimal"
+                  value={formatEditableNumber(transferDraft.transferAmount)}
+                  onChange={(e) => setTransferDraft((c) => ({ ...c, transferAmount: normalizeNumberInput(e.target.value) }))}
+                  placeholder="المبلغ"
+                />
+              </div>
+              <div className="transfer-form__field transfer-form__field--money">
+                <label className="transfer-form__label">للزبون</label>
+                <input
+                  className="money-input"
+                  inputMode="decimal"
+                  value={formatEditableNumber(transferDraft.customerAmount)}
+                  onChange={(e) => setTransferDraft((c) => ({ ...c, customerAmount: normalizeNumberInput(e.target.value) }))}
+                  placeholder="كم بنعطوه"
+                />
+              </div>
+            </div>
+
+            <div className="transfer-form__submit">
+              <button
+                type="submit"
+                disabled={!singleFormValid}
+                className={`transfer-submit${singleRefDuplicate ? ' transfer-submit--dup' : ''}`}
+                title={singleMissingField || ''}
+              >
+                {singleRefDuplicate ? '⚠ حفظ كحوالة مكرّرة' : '＋ حفظ الحوالة'}
               </button>
-            </form>
-
-            {singleRefDuplicate ? (
-              <div className="duplicate-ref-banner">
-                ⚠ رقم الحوالة <strong>{transferDraft.reference}</strong> موجود مسبقاً — ستُضاف كحوالة مكرّرة ومُميَّزة بالأحمر لحين المراجعة
-              </div>
-            ) : null}
-
-            {transferDraft.receiverName && (singleReceiverPreview.total > 0 || singleReceiverPreview.isTurkish) ? (
-              <div className={`receiver-preview-badge ${singleReceiverPreviewClass}`}>
-                {singleReceiverPreview.isTurkish ? <span title="مستلم تركي" style={{ marginInlineEnd: 4 }}>🇹🇷</span> : null}
-                المستلم <strong>{transferDraft.receiverName}</strong>
-                {singleReceiverPreview.total > 0
-                  ? <> — قديم: {singleReceiverPreview.legacyCount || 0} · النظام: {singleReceiverPreview.systemCount || 0} · المجموع: <strong>{singleReceiverPreview.total}</strong></>
-                  : null}
-                {singleReceiverPreview.isTurkish ? <strong style={{ marginInlineStart: 6 }}>· تركي 🇹🇷</strong> : null}
-              </div>
-            ) : null}
-          </>
+              {!singleFormValid ? (
+                <span className="transfer-submit__hint">المطلوب: {singleMissingField}</span>
+              ) : singleRefDuplicate ? (
+                <span className="transfer-submit__hint transfer-submit__hint--warn">
+                  الرقم موجود مسبقاً — ستُحفظ ومميّزة بالأحمر
+                </span>
+              ) : (
+                <span className="transfer-submit__hint transfer-submit__hint--ok">جاهزة للحفظ ✓</span>
+              )}
+            </div>
+          </form>
         ) : (
           <form className="batch-transfer-form" onSubmit={onAddTransferBatch}>
             <div className="batch-transfer-head">
@@ -421,42 +490,70 @@ export default function TransfersTab({
           </>
         )}
 
-        <div className="filter-bar">
-          <input
-            className="search-input"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="بحث..."
-          />
-          <select className="filter-select" value={viewMode} onChange={(e) => setViewMode(e.target.value)}>
-            {Object.entries(VIEW_LABELS).map(([k, v]) => (
-              <option key={k} value={k}>{v}</option>
-            ))}
-          </select>
-          {readOnly && customers.length <= 1 ? null : (
-            <select className="filter-select" value={customerFilter} onChange={(e) => setCustomerFilter(e.target.value)}>
-              <option value={FILTER_ALL}>كل الزبائن</option>
-              {customers.map((c) => (
-                <option key={c.id} value={c.id}>{c.name}</option>
+        <div className="transfer-search-bar">
+          <div className="transfer-search-bar__input">
+            <span className="transfer-search-bar__icon" aria-hidden="true">⌕</span>
+            <input
+              className="search-input"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="ابحث برقم الحوالة، اسم المرسل، أو المستلم..."
+            />
+            {searchTerm ? (
+              <button
+                type="button"
+                className="transfer-search-bar__clear"
+                onClick={() => setSearchTerm('')}
+                aria-label="مسح البحث"
+              >
+                ×
+              </button>
+            ) : null}
+          </div>
+          <button
+            type="button"
+            className={`transfer-search-bar__toggle${advancedFiltersOpen ? ' transfer-search-bar__toggle--open' : ''}${advancedFiltersActive ? ' transfer-search-bar__toggle--active' : ''}`}
+            onClick={() => setAdvancedFiltersOpen((v) => !v)}
+            aria-expanded={advancedFiltersOpen}
+          >
+            فلاتر
+            {advancedFiltersActive ? <span className="transfer-search-bar__dot" /> : null}
+            <span className="transfer-search-bar__chevron" aria-hidden="true">{advancedFiltersOpen ? '▲' : '▼'}</span>
+          </button>
+        </div>
+
+        {advancedFiltersOpen ? (
+          <div className="advanced-filters">
+            <select className="filter-select" value={viewMode} onChange={(e) => setViewMode(e.target.value)}>
+              {Object.entries(VIEW_LABELS).map(([k, v]) => (
+                <option key={k} value={k}>{v}</option>
               ))}
             </select>
-          )}
-          <select className="filter-select" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-            <option value={FILTER_ALL}>كل الحالات</option>
-            {statusOrder.map((s) => (
-              <option key={s} value={s}>{statusMeta[s].label}</option>
-            ))}
-          </select>
-          <select className="filter-select" value={sortMode} onChange={(e) => setSortMode(e.target.value)}>
-            <option value="smart">ذكي</option>
-            <option value="latest">الأحدث</option>
-            <option value="oldest">الأقدم</option>
-            <option value="customer">الزبون</option>
-          </select>
-          <input type="date" className="filter-date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
-          <input type="date" className="filter-date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
-          <button className="ghost-button ghost-button--muted" onClick={onResetFilters}>تصفير</button>
-        </div>
+            {readOnly && customers.length <= 1 ? null : (
+              <select className="filter-select" value={customerFilter} onChange={(e) => setCustomerFilter(e.target.value)}>
+                <option value={FILTER_ALL}>كل الزبائن</option>
+                {customers.map((c) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+            )}
+            <select className="filter-select" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+              <option value={FILTER_ALL}>كل الحالات</option>
+              {statusOrder.map((s) => (
+                <option key={s} value={s}>{statusMeta[s].label}</option>
+              ))}
+            </select>
+            <select className="filter-select" value={sortMode} onChange={(e) => setSortMode(e.target.value)}>
+              <option value="smart">ذكي</option>
+              <option value="latest">الأحدث</option>
+              <option value="oldest">الأقدم</option>
+              <option value="customer">الزبون</option>
+            </select>
+            <input type="date" className="filter-date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
+            <input type="date" className="filter-date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+            <button className="ghost-button ghost-button--muted" onClick={onResetFilters}>تصفير</button>
+          </div>
+        ) : null}
       </section>
 
       {/* ── Active transfers ── */}
