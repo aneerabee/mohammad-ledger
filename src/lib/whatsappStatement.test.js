@@ -281,27 +281,62 @@ describe('buildCustomerWhatsappMessage', () => {
     expect(msg).toMatch(/مسحوبة وتنتظر التسوية: 2 حوالة \(بقيمة 800\$\)/)
   })
 
-  it('today section shows pickedUp and new counts when there is activity today', () => {
+  it('today section lists new today transfers + a status summary', () => {
     const customer = mkCustomer({ id: 400 })
     const today = new Date('2026-04-13T12:00:00.000Z')
     const transfers = [
       mkTransfer({
-        id: 1, customerId: 400, reference: 'X',
+        id: 1, customerId: 400, reference: 'TODAY1',
         status: 'picked_up', settled: false,
         customerAmount: 500,
         createdAt: '2026-04-13T09:00:00.000Z',
         pickedUpAt: '2026-04-13T10:00:00.000Z',
       }),
       mkTransfer({
-        id: 2, customerId: 400, reference: 'Y',
+        id: 2, customerId: 400, reference: 'TODAY2',
         status: 'received',
         createdAt: '2026-04-13T11:00:00.000Z',
       }),
+      mkTransfer({
+        id: 3, customerId: 400, reference: 'TODAY3',
+        status: 'issue',
+        createdAt: '2026-04-13T11:30:00.000Z',
+      }),
     ]
     const msg = buildCustomerWhatsappMessage({ customer, transfers, ledgerEntries: [], now: today })
+    // Header mentions 3 new today
+    expect(msg).toMatch(/نشاط اليوم \(3 حوالة جديدة\)/)
+    // Each of today's transfers listed with its reference
+    expect(msg).toContain('TODAY1')
+    expect(msg).toContain('TODAY2')
+    expect(msg).toContain('TODAY3')
+    // Summary block
+    expect(msg).toMatch(/ملخص اليوم/)
+    expect(msg).toMatch(/مسحوبة: 1 حوالة/)
+    expect(msg).toMatch(/لم تُرسل للموظف بعد: 1 حوالة/)
+    expect(msg).toMatch(/فيها مشاكل: 1 حوالة/)
+  })
+
+  it('older transfers section excludes today to avoid duplication', () => {
+    const customer = mkCustomer({ id: 450 })
+    const today = new Date('2026-04-13T12:00:00.000Z')
+    const transfers = [
+      mkTransfer({ id: 1, customerId: 450, reference: 'TODAY_A', createdAt: '2026-04-13T09:00:00.000Z' }),
+      mkTransfer({ id: 2, customerId: 450, reference: 'TODAY_B', createdAt: '2026-04-13T10:00:00.000Z' }),
+      mkTransfer({ id: 3, customerId: 450, reference: 'OLD_A',   createdAt: '2026-04-10T10:00:00.000Z' }),
+      mkTransfer({ id: 4, customerId: 450, reference: 'OLD_B',   createdAt: '2026-04-09T10:00:00.000Z' }),
+    ]
+    const msg = buildCustomerWhatsappMessage({ customer, transfers, ledgerEntries: [], now: today })
+    // Today's section appears with today's refs
     expect(msg).toMatch(/نشاط اليوم/)
-    expect(msg).toMatch(/مسحوبة اليوم: 1 حوالة/)
-    expect(msg).toMatch(/جديدة اليوم: 2 حوالة/)
+    // Older section heading uses "سابقة" when today has new transfers
+    expect(msg).toMatch(/آخر 2 حوالة سابقة/)
+    // Older transfers list contains ONLY the old refs, not today's
+    const olderBlock = msg.split('آخر 2 حوالة سابقة')[1] || ''
+    expect(olderBlock).toContain('OLD_A')
+    expect(olderBlock).toContain('OLD_B')
+    expect(olderBlock).not.toContain('TODAY_A')
+    expect(olderBlock).not.toContain('TODAY_B')
   })
 
   it('last settlement section shows the most recent settlement batch', () => {
@@ -323,7 +358,7 @@ describe('buildCustomerWhatsappMessage', () => {
     expect(amountMatch[1]).toBe('1,500')
   })
 
-  it('shows last 10 recent by default, but all today if today > 10', () => {
+  it('lists ALL of today new transfers regardless of count', () => {
     const customer = mkCustomer({ id: 600 })
     const today = new Date('2026-04-13T12:00:00.000Z')
     const transfers = []
@@ -336,16 +371,18 @@ describe('buildCustomerWhatsappMessage', () => {
     }
     // And 3 older transfers
     for (let i = 13; i <= 15; i++) {
-      transfers.push(mkTransfer({ id: i, customerId: 600, reference: `OLD${i}`, createdAt: '2026-04-10T08:00:00.000Z' }))
+      transfers.push(mkTransfer({ id: i, customerId: 600, reference: `OLDER${i}`, createdAt: '2026-04-10T08:00:00.000Z' }))
     }
     const msg = buildCustomerWhatsappMessage({ customer, transfers, ledgerEntries: [], now: today })
-    // Header should say "حوالات اليوم (12 حوالة)" not "آخر 10 حوالة"
-    expect(msg).toMatch(/حوالات اليوم \(12 حوالة\)/)
-    // All 12 today's refs should appear
+    // Today header says 12 new
+    expect(msg).toMatch(/نشاط اليوم \(12 حوالة جديدة\)/)
+    // All 12 today's refs appear
     for (let i = 1; i <= 12; i++) {
       expect(msg).toContain(`T${i}`)
     }
-    // None of the older ones
-    expect(msg).not.toContain('OLD13')
+    // Older section appears with older refs
+    expect(msg).toMatch(/آخر 3 حوالة سابقة/)
+    expect(msg).toContain('OLDER13')
+    expect(msg).toContain('OLDER15')
   })
 })

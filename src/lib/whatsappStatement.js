@@ -155,8 +155,6 @@ export function buildCustomerWhatsappMessage({
   let issueCount = 0            // unresolved problems
   let unsettledCount = 0        // picked up by customer but not paid out yet
   let unsettledTotal = 0        // sum of customerAmount for unsettledCount
-  let pickedUpTodayCount = 0    // picked_up events that happened today
-  let newTodayCount = 0         // transfers created today
 
   for (const t of activeTransfers) {
     if (t.status === 'received') receivedCount += 1
@@ -166,13 +164,6 @@ export function buildCustomerWhatsappMessage({
     else if (t.status === 'picked_up' && !t.settled) {
       unsettledCount += 1
       unsettledTotal += Number(t.customerAmount) || 0
-    }
-
-    if (t.status === 'picked_up' && toLocalDateKey(t.pickedUpAt) === todayKey) {
-      pickedUpTodayCount += 1
-    }
-    if (toLocalDateKey(t.createdAt) === todayKey) {
-      newTodayCount += 1
     }
   }
 
@@ -209,13 +200,45 @@ export function buildCustomerWhatsappMessage({
     }
   }
 
-  // ── Recent transfers slice ──────────────────────────────────────────
-  // Default: last 10. If today has more than 10, show all today's instead.
+  // ── Split into today vs older — today is always shown in full, and the
+  //    "آخر N سابقة" section only carries transfers from before today so
+  //    nothing is duplicated.
   const sortedByCreated = [...activeTransfers].sort(
     (a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime(),
   )
-  const recentCount = Math.max(MIN_RECENT_TRANSFERS, newTodayCount)
-  const recent = sortedByCreated.slice(0, recentCount)
+  const todayTransfers = sortedByCreated.filter((t) => toLocalDateKey(t.createdAt) === todayKey)
+  const olderTransfers = sortedByCreated
+    .filter((t) => toLocalDateKey(t.createdAt) !== todayKey)
+    .slice(0, MIN_RECENT_TRANSFERS)
+
+  // Status breakdown for today's new transfers (drives the small "ملخص اليوم")
+  let todayPickedUpCount = 0
+  let todayWithEmployeeCount = 0
+  let todayReceivedCount = 0
+  let todayIssueCount = 0
+  let todayReviewHoldCount = 0
+  for (const t of todayTransfers) {
+    if (t.status === 'picked_up') todayPickedUpCount += 1
+    else if (t.status === 'with_employee') todayWithEmployeeCount += 1
+    else if (t.status === 'received') todayReceivedCount += 1
+    else if (t.status === 'issue') todayIssueCount += 1
+    else if (t.status === 'review_hold') todayReviewHoldCount += 1
+  }
+
+  const formatTransferLine = (t, index) => {
+    const statusLabel = STATUS_LABELS[t.status] || t.status || ''
+    const amt = typeof t.customerAmount === 'number' ? formatUsd(t.customerAmount) : '-'
+    const ref = t.reference || '-'
+    const dateStr = formatDate(t.createdAt)
+    const receiver = t.receiverName || ''
+    const num = index + 1
+    const parts = [`${num}- رقم ${ref}`]
+    if (receiver) parts.push(`| المستلم: ${receiver}`)
+    parts.push(`| الحالة: ${statusLabel}`)
+    parts.push(`| المبلغ: ${amt}`)
+    if (dateStr) parts.push(`| ${dateStr}`)
+    return parts.join(' ')
+  }
 
   // ── Build the message ───────────────────────────────────────────────
   const lines = []
@@ -255,14 +278,38 @@ export function buildCustomerWhatsappMessage({
     lines.push('')
   }
 
-  // Section 3 — today's activity (only if there's anything today)
-  if (pickedUpTodayCount > 0 || newTodayCount > 0) {
-    lines.push('*نشاط اليوم*')
-    if (pickedUpTodayCount > 0) {
-      lines.push(`- مسحوبة اليوم: ${pickedUpTodayCount} حوالة`)
+  // Section 3 — today's new transfers (listed) + today summary
+  if (todayTransfers.length > 0) {
+    lines.push(`*نشاط اليوم (${todayTransfers.length} حوالة جديدة)*`)
+    lines.push('')
+    lines.push('الحوالات الجديدة اليوم:')
+    todayTransfers.forEach((t, index) => lines.push(formatTransferLine(t, index)))
+    lines.push('')
+    lines.push('ملخص اليوم:')
+    if (todayPickedUpCount > 0) {
+      lines.push(`- مسحوبة: ${todayPickedUpCount} حوالة`)
     }
-    if (newTodayCount > 0) {
-      lines.push(`- جديدة اليوم: ${newTodayCount} حوالة`)
+    if (todayWithEmployeeCount > 0) {
+      lines.push(`- عند الموظف: ${todayWithEmployeeCount} حوالة`)
+    }
+    if (todayReceivedCount > 0) {
+      lines.push(`- لم تُرسل للموظف بعد: ${todayReceivedCount} حوالة`)
+    }
+    if (todayReviewHoldCount > 0) {
+      lines.push(`- قيد المراجعة: ${todayReviewHoldCount} حوالة`)
+    }
+    if (todayIssueCount > 0) {
+      lines.push(`- فيها مشاكل: ${todayIssueCount} حوالة`)
+    }
+    if (
+      todayPickedUpCount +
+        todayWithEmployeeCount +
+        todayReceivedCount +
+        todayReviewHoldCount +
+        todayIssueCount ===
+      0
+    ) {
+      lines.push('- لم يتم التحرك على أي منها بعد')
     }
     lines.push('')
   }
@@ -277,29 +324,16 @@ export function buildCustomerWhatsappMessage({
     lines.push('')
   }
 
-  // Section 5 — recent transfers list
-  if (recent.length > 0) {
+  // Section 5 — older transfers list (pre-today only, to avoid duplication)
+  if (olderTransfers.length > 0) {
     const heading =
-      recentCount > MIN_RECENT_TRANSFERS
-        ? `*حوالات اليوم (${recent.length} حوالة)*`
-        : `*آخر ${recent.length} حوالة*`
+      todayTransfers.length > 0
+        ? `*آخر ${olderTransfers.length} حوالة سابقة*`
+        : `*آخر ${olderTransfers.length} حوالة*`
     lines.push(heading)
-    recent.forEach((t, index) => {
-      const statusLabel = STATUS_LABELS[t.status] || t.status || ''
-      const amt = typeof t.customerAmount === 'number' ? formatUsd(t.customerAmount) : '-'
-      const ref = t.reference || '-'
-      const dateStr = formatDate(t.createdAt)
-      const receiver = t.receiverName || ''
-      const num = index + 1
-      const parts = [`${num}- رقم ${ref}`]
-      if (receiver) parts.push(`| المستلم: ${receiver}`)
-      parts.push(`| الحالة: ${statusLabel}`)
-      parts.push(`| المبلغ: ${amt}`)
-      if (dateStr) parts.push(`| ${dateStr}`)
-      lines.push(parts.join(' '))
-    })
+    olderTransfers.forEach((t, index) => lines.push(formatTransferLine(t, index)))
     lines.push('')
-  } else {
+  } else if (todayTransfers.length === 0) {
     lines.push('لا توجد حوالات مسجّلة بعد.')
     lines.push('')
   }
