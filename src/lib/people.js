@@ -236,6 +236,24 @@ export function upsertPersonOverride(overrides = [], patch) {
 }
 
 /**
+ * Immutably soft-delete a person override by ID. Safe no-op if the ID
+ * is not found. Caller is responsible for enforcing business rules
+ * (e.g. "only if the person has zero transfers").
+ */
+export function deletePersonOverride(overrides = [], personId) {
+  if (!personId) return overrides
+  const now = new Date().toISOString()
+  let found = false
+  const next = overrides.map((row) => {
+    if (row.id !== personId) return row
+    if (row.deletedAt) return row
+    found = true
+    return { ...row, deletedAt: now, updatedAt: now }
+  })
+  return found ? next : overrides
+}
+
+/**
  * Detect duplicate reference in a transfer list. Case-insensitive on reference.
  * Returns a Set of references that appear more than once.
  */

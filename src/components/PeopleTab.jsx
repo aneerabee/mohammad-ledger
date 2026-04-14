@@ -11,6 +11,7 @@ function PersonTable({
   transfers,
   overrides,
   onUpsertPerson,
+  onDeletePerson,
   readOnly = false,
 }) {
   const [query, setQuery] = useState('')
@@ -75,6 +76,18 @@ function PersonTable({
   }
 
   function cancelEdit() {
+    setEditingKey(null)
+    setEditDraft({ legacyCount: '', isTurkish: false })
+  }
+
+  function confirmDelete(row) {
+    // Safety gate: only deletable if the total is zero AND the row has an
+    // override record (system-derived rows have no id and cannot be removed).
+    if (row.total > 0 || !row.hasOverride || !row.id) return
+    const label = isReceiver ? 'المستلم' : 'المرسل'
+    const ok = window.confirm(`هل تريد حذف ${label} "${row.name}"؟ هذه العملية ممكنة لأنه لا توجد أي حوالة مرتبطة به.`)
+    if (!ok) return
+    onDeletePerson?.(row.id)
     setEditingKey(null)
     setEditDraft({ legacyCount: '', isTurkish: false })
   }
@@ -220,12 +233,23 @@ function PersonTable({
                             <button
                               className="action-btn action-btn--green action-btn--xs"
                               onClick={() => saveEditLegacy(row)}
+                              title="حفظ"
                             >
                               ✓
                             </button>
+                            {row.total === 0 && row.hasOverride ? (
+                              <button
+                                className="action-btn action-btn--red action-btn--xs"
+                                onClick={() => confirmDelete(row)}
+                                title={`حذف ${isReceiver ? 'المستلم' : 'المرسل'} (لا توجد حوالات مرتبطة)`}
+                              >
+                                🗑
+                              </button>
+                            ) : null}
                             <button
                               className="action-btn ghost-button action-btn--xs"
                               onClick={cancelEdit}
+                              title="إلغاء"
                             >
                               ×
                             </button>
@@ -258,6 +282,8 @@ export default function PeopleTab({
   receivers,
   onUpsertSender,
   onUpsertReceiver,
+  onDeleteSender,
+  onDeleteReceiver,
   readOnly = false,
 }) {
   // Receivers is always the default tab — it's the priority per user spec
@@ -310,6 +336,7 @@ export default function PeopleTab({
             transfers={transfers}
             overrides={receivers}
             onUpsertPerson={onUpsertReceiver}
+            onDeletePerson={onDeleteReceiver}
             readOnly={readOnly}
           />
         </>
@@ -319,6 +346,7 @@ export default function PeopleTab({
           transfers={transfers}
           overrides={senders}
           onUpsertPerson={onUpsertSender}
+          onDeletePerson={onDeleteSender}
           readOnly={readOnly}
         />
       )}

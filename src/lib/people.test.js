@@ -8,6 +8,7 @@ import {
   lookupReceiverColor,
   findPersonByName,
   upsertPersonOverride,
+  deletePersonOverride,
   findDuplicateReferences,
   referenceExists,
   collectNameSuggestions,
@@ -298,6 +299,59 @@ describe('upsertPersonOverride — Turkish flag', () => {
     expect(b[0].isTurkish).toBe(false)
     const c = upsertPersonOverride([], { name: 'ج', isTurkish: 1 })
     expect(c[0].isTurkish).toBe(true)
+  })
+})
+
+describe('deletePersonOverride', () => {
+  it('soft-deletes the matching row by id', () => {
+    const initial = [
+      { id: 'p1', name: 'أيمن', legacyCount: 0, isTurkish: false, deletedAt: null },
+      { id: 'p2', name: 'سعيد', legacyCount: 3, isTurkish: false, deletedAt: null },
+    ]
+    const next = deletePersonOverride(initial, 'p1')
+    expect(next).not.toBe(initial)
+    expect(next[0].deletedAt).toBeTruthy()
+    expect(next[1].deletedAt).toBeNull()
+  })
+
+  it('no-ops when id is not found', () => {
+    const initial = [{ id: 'p1', name: 'أ', legacyCount: 0, deletedAt: null }]
+    const next = deletePersonOverride(initial, 'missing')
+    expect(next).toBe(initial)
+  })
+
+  it('no-ops when id is empty', () => {
+    const initial = [{ id: 'p1', name: 'أ', legacyCount: 0, deletedAt: null }]
+    expect(deletePersonOverride(initial, '')).toBe(initial)
+    expect(deletePersonOverride(initial, null)).toBe(initial)
+    expect(deletePersonOverride(initial, undefined)).toBe(initial)
+  })
+
+  it('does not re-delete an already-deleted row (idempotent)', () => {
+    const initial = [
+      { id: 'p1', name: 'أ', legacyCount: 0, deletedAt: '2026-01-01T00:00:00.000Z' },
+    ]
+    const next = deletePersonOverride(initial, 'p1')
+    expect(next).toBe(initial)
+    expect(next[0].deletedAt).toBe('2026-01-01T00:00:00.000Z')
+  })
+
+  it('never mutates the input array or rows', () => {
+    const initial = [
+      { id: 'p1', name: 'أ', legacyCount: 0, deletedAt: null },
+    ]
+    const snapshot = JSON.stringify(initial)
+    deletePersonOverride(initial, 'p1')
+    expect(JSON.stringify(initial)).toBe(snapshot)
+  })
+
+  it('deleted rows are excluded from buildPeopleList', () => {
+    const overrides = [
+      { id: 'p1', name: 'أيمن', legacyCount: 0, isTurkish: false, deletedAt: null },
+    ]
+    const afterDelete = deletePersonOverride(overrides, 'p1')
+    const list = buildPeopleList([], afterDelete, PERSON_KIND.RECEIVER)
+    expect(list).toHaveLength(0)
   })
 })
 

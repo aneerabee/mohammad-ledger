@@ -47,7 +47,12 @@ import IssuesTab from './components/IssuesTab'
 import TrashTab from './components/TrashTab'
 import PeopleTab from './components/PeopleTab'
 import StatsHero from './components/StatsHero'
-import { buildReceiverColorMap, findDuplicateReferences, upsertPersonOverride } from './lib/people'
+import {
+  buildReceiverColorMap,
+  deletePersonOverride,
+  findDuplicateReferences,
+  upsertPersonOverride,
+} from './lib/people'
 
 function downloadFile({ fileName, content, contentType }) {
   const blob = new Blob([content], { type: contentType })
@@ -688,6 +693,24 @@ function App() {
       ...s,
       receivers: upsertPersonOverride(s.receivers || [], patch),
     }))
+  }
+
+  function handleDeleteSender(personId) {
+    if (blockIfReadOnly()) return
+    setState((s) => ({
+      ...s,
+      senders: deletePersonOverride(s.senders || [], personId),
+    }))
+    setFeedback('تم حذف المرسل.')
+  }
+
+  function handleDeleteReceiver(personId) {
+    if (blockIfReadOnly()) return
+    setState((s) => ({
+      ...s,
+      receivers: deletePersonOverride(s.receivers || [], personId),
+    }))
+    setFeedback('تم حذف المستلم.')
   }
 
   function handleSettle(transferIds) {
@@ -1337,6 +1360,8 @@ function App() {
           receivers={receivers}
           onUpsertSender={handleUpsertSender}
           onUpsertReceiver={handleUpsertReceiver}
+          onDeleteSender={handleDeleteSender}
+          onDeleteReceiver={handleDeleteReceiver}
           readOnly={isReadOnly}
         />
       ) : null}
