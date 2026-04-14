@@ -11,8 +11,6 @@ import { summarizeCustomers } from './transferLogic'
   The module never mutates inputs and never performs any I/O.
 */
 
-const MIN_RECENT_TRANSFERS = 10
-
 function formatMoney(value) {
   const n = Math.round(Number(value) || 0)
   try {
@@ -200,16 +198,10 @@ export function buildCustomerWhatsappMessage({
     }
   }
 
-  // ── Split into today vs older — today is always shown in full, and the
-  //    "آخر N سابقة" section only carries transfers from before today so
-  //    nothing is duplicated.
-  const sortedByCreated = [...activeTransfers].sort(
-    (a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime(),
-  )
-  const todayTransfers = sortedByCreated.filter((t) => toLocalDateKey(t.createdAt) === todayKey)
-  const olderTransfers = sortedByCreated
-    .filter((t) => toLocalDateKey(t.createdAt) !== todayKey)
-    .slice(0, MIN_RECENT_TRANSFERS)
+  // ── Today's new transfers (full list + summary) ─────────────────────
+  const todayTransfers = [...activeTransfers]
+    .filter((t) => toLocalDateKey(t.createdAt) === todayKey)
+    .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())
 
   // Status breakdown for today's new transfers (drives the small "ملخص اليوم")
   let todayPickedUpCount = 0
@@ -324,16 +316,8 @@ export function buildCustomerWhatsappMessage({
     lines.push('')
   }
 
-  // Section 5 — older transfers list (pre-today only, to avoid duplication)
-  if (olderTransfers.length > 0) {
-    const heading =
-      todayTransfers.length > 0
-        ? `*آخر ${olderTransfers.length} حوالة سابقة*`
-        : `*آخر ${olderTransfers.length} حوالة*`
-    lines.push(heading)
-    olderTransfers.forEach((t, index) => lines.push(formatTransferLine(t, index)))
-    lines.push('')
-  } else if (todayTransfers.length === 0) {
+  // Empty state — only when absolutely nothing has been recorded
+  if (activeTransfers.length === 0) {
     lines.push('لا توجد حوالات مسجّلة بعد.')
     lines.push('')
   }

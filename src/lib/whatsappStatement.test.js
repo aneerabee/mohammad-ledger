@@ -143,44 +143,45 @@ describe('buildCustomerWhatsappMessage', () => {
     expect(msg).toMatch(/\b3\b/)
   })
 
-  it('lists recent transfers (max 5) with reference numbers', () => {
+  it('only lists transfers created today; older ones never appear individually', () => {
     const customer = mkCustomer({ id: 100 })
-    const transfers = []
-    for (let i = 1; i <= 8; i++) {
-      transfers.push(mkTransfer({
-        id: i,
-        customerId: 100,
-        reference: `REF${i}`,
-        createdAt: `2026-04-${10 + i}T08:00:00.000Z`,
-      }))
-    }
-    const msg = buildCustomerWhatsappMessage({ customer, transfers, ledgerEntries: [] })
-    // The 5 newest should appear (REF8, REF7, REF6, REF5, REF4)
-    expect(msg).toContain('REF8')
-    expect(msg).toContain('REF7')
-    expect(msg).toContain('REF4')
-    // The older ones should NOT appear (REF1, REF2, REF3)
-    expect(msg).not.toContain('REF1\n') // not as a whole token
+    const today = new Date('2026-04-18T12:00:00.000Z')
+    const transfers = [
+      // Today — should appear
+      mkTransfer({ id: 1, customerId: 100, reference: 'TODAYREF', createdAt: '2026-04-18T08:00:00.000Z' }),
+      // Yesterday — should NOT appear individually
+      mkTransfer({ id: 2, customerId: 100, reference: 'YESTREF', createdAt: '2026-04-17T08:00:00.000Z' }),
+      // Last week — should NOT appear individually
+      mkTransfer({ id: 3, customerId: 100, reference: 'OLDREF', createdAt: '2026-04-11T08:00:00.000Z' }),
+    ]
+    const msg = buildCustomerWhatsappMessage({ customer, transfers, ledgerEntries: [], now: today })
+    expect(msg).toContain('TODAYREF')
+    expect(msg).not.toContain('YESTREF')
+    expect(msg).not.toContain('OLDREF')
   })
 
   it('never leaks data from other customers', () => {
     const customer = mkCustomer({ id: 100, name: 'بندريس' })
+    // now must match the default createdAt date so the transfer lands
+    // inside today's list where individual refs become visible
+    const now = new Date('2026-04-12T15:00:00.000Z')
     const transfers = [
       mkTransfer({ id: 1, customerId: 100, reference: 'MINE' }),
       mkTransfer({ id: 2, customerId: 999, reference: 'OTHER-CUSTOMER' }),
     ]
-    const msg = buildCustomerWhatsappMessage({ customer, transfers, ledgerEntries: [] })
+    const msg = buildCustomerWhatsappMessage({ customer, transfers, ledgerEntries: [], now })
     expect(msg).toContain('MINE')
     expect(msg).not.toContain('OTHER-CUSTOMER')
   })
 
   it('excludes deleted transfers', () => {
     const customer = mkCustomer({ id: 100 })
+    const now = new Date('2026-04-12T15:00:00.000Z')
     const transfers = [
       mkTransfer({ id: 1, customerId: 100, reference: 'KEEP' }),
       mkTransfer({ id: 2, customerId: 100, reference: 'DELETED', deletedAt: '2026-04-12T00:00:00.000Z' }),
     ]
-    const msg = buildCustomerWhatsappMessage({ customer, transfers, ledgerEntries: [] })
+    const msg = buildCustomerWhatsappMessage({ customer, transfers, ledgerEntries: [], now })
     expect(msg).toContain('KEEP')
     expect(msg).not.toContain('DELETED')
   })
@@ -317,26 +318,23 @@ describe('buildCustomerWhatsappMessage', () => {
     expect(msg).toMatch(/فيها مشاكل: 1 حوالة/)
   })
 
-  it('older transfers section excludes today to avoid duplication', () => {
+  it('does NOT include any older-transfers section — only essentials', () => {
     const customer = mkCustomer({ id: 450 })
     const today = new Date('2026-04-13T12:00:00.000Z')
     const transfers = [
       mkTransfer({ id: 1, customerId: 450, reference: 'TODAY_A', createdAt: '2026-04-13T09:00:00.000Z' }),
-      mkTransfer({ id: 2, customerId: 450, reference: 'TODAY_B', createdAt: '2026-04-13T10:00:00.000Z' }),
-      mkTransfer({ id: 3, customerId: 450, reference: 'OLD_A',   createdAt: '2026-04-10T10:00:00.000Z' }),
-      mkTransfer({ id: 4, customerId: 450, reference: 'OLD_B',   createdAt: '2026-04-09T10:00:00.000Z' }),
+      mkTransfer({ id: 2, customerId: 450, reference: 'OLD_A', createdAt: '2026-04-10T10:00:00.000Z' }),
+      mkTransfer({ id: 3, customerId: 450, reference: 'OLD_B', createdAt: '2026-04-09T10:00:00.000Z' }),
     ]
     const msg = buildCustomerWhatsappMessage({ customer, transfers, ledgerEntries: [], now: today })
-    // Today's section appears with today's refs
-    expect(msg).toMatch(/نشاط اليوم/)
-    // Older section heading uses "سابقة" when today has new transfers
-    expect(msg).toMatch(/آخر 2 حوالة سابقة/)
-    // Older transfers list contains ONLY the old refs, not today's
-    const olderBlock = msg.split('آخر 2 حوالة سابقة')[1] || ''
-    expect(olderBlock).toContain('OLD_A')
-    expect(olderBlock).toContain('OLD_B')
-    expect(olderBlock).not.toContain('TODAY_A')
-    expect(olderBlock).not.toContain('TODAY_B')
+    // Today's transfer IS listed
+    expect(msg).toContain('TODAY_A')
+    // Older transfers are NEVER listed individually — they only count in the
+    // "حالة الحوالات الآن" / "آخر تسوية" aggregate sections
+    expect(msg).not.toContain('OLD_A')
+    expect(msg).not.toContain('OLD_B')
+    expect(msg).not.toMatch(/حوالة سابقة/)
+    expect(msg).not.toMatch(/آخر \d+ حوالة(?! جديدة)/)
   })
 
   it('last settlement section shows the most recent settlement batch', () => {
@@ -369,7 +367,7 @@ describe('buildCustomerWhatsappMessage', () => {
         createdAt: `2026-04-13T${String(9 + Math.floor(i / 2)).padStart(2, '0')}:${String((i % 2) * 30).padStart(2, '0')}:00.000Z`,
       }))
     }
-    // And 3 older transfers
+    // And 3 older transfers — these MUST NOT appear in the message list
     for (let i = 13; i <= 15; i++) {
       transfers.push(mkTransfer({ id: i, customerId: 600, reference: `OLDER${i}`, createdAt: '2026-04-10T08:00:00.000Z' }))
     }
@@ -380,9 +378,9 @@ describe('buildCustomerWhatsappMessage', () => {
     for (let i = 1; i <= 12; i++) {
       expect(msg).toContain(`T${i}`)
     }
-    // Older section appears with older refs
-    expect(msg).toMatch(/آخر 3 حوالة سابقة/)
-    expect(msg).toContain('OLDER13')
-    expect(msg).toContain('OLDER15')
+    // Older refs NEVER appear — they're only reflected in aggregate counts
+    expect(msg).not.toContain('OLDER13')
+    expect(msg).not.toContain('OLDER14')
+    expect(msg).not.toContain('OLDER15')
   })
 })
