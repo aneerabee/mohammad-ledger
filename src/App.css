@@ -2763,6 +2763,12 @@ tbody tr:hover {
   padding: 2px 8px;
   border-radius: 4px;
 }
+.person-name-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
 .person-count-legacy, .person-count-system, .person-count-total {
   display: inline-block;
   min-width: 32px;
@@ -3840,6 +3846,48 @@ tbody tr:hover {
 .empty-state.compact {
   padding: 14px;
   font-size: 0.85rem;
+}
+
+/* ─── CopyButton ─── */
+.copy-btn {
+  background: transparent;
+  color: var(--ink-soft);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 2px 9px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 1.35;
+  white-space: nowrap;
+  transition: background 0.15s, color 0.15s, border-color 0.15s, transform 0.15s;
+  font-variant-numeric: tabular-nums;
+}
+
+.copy-btn:hover {
+  background: var(--bg);
+  color: var(--blue);
+  border-color: var(--blue);
+  opacity: 1;
+  transform: none;
+}
+
+.copy-btn--success {
+  background: color-mix(in srgb, var(--green) 14%, transparent);
+  color: var(--green);
+  border-color: color-mix(in srgb, var(--green) 55%, var(--border));
+  animation: copy-pulse 0.32s ease;
+}
+
+.copy-btn--success:hover {
+  background: color-mix(in srgb, var(--green) 18%, transparent);
+  color: var(--green);
+  border-color: var(--green);
+}
+
+@keyframes copy-pulse {
+  0% { transform: scale(1); }
+  45% { transform: scale(1.09); }
+  100% { transform: scale(1); }
 }
 
 /* ─── Redesigned add-transfer panel ─── */

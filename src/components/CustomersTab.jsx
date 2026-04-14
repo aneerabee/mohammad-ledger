@@ -11,6 +11,7 @@ import { buildCustomerWhatsappMessage, buildWhatsappUrl } from '../lib/whatsappS
 import { getCustomerTheme, getCustomerMonogram } from '../lib/customerTheme'
 import { formatEditableNumber, formatMoney, normalizeNumberInput } from '../lib/formatting'
 import { getReceiverColorClass, lookupReceiverColor } from '../lib/people'
+import CopyButton from './CopyButton'
 
 function getHealthLevel(currentBalance) {
   const v = Math.abs(Number(currentBalance) || 0)
@@ -309,6 +310,7 @@ export default function CustomersTab({
                 <div className="customer-identity">
                   <div className="customer-name-line">
                     <h3 className="customer-name">{c.name}</h3>
+                    <CopyButton text={c.name} />
                     <span className={`health-badge health-badge--${healthLevel}`}>
                       {healthLevel === 'clear' && '✓ ممتاز'}
                       {healthLevel === 'caution' && '◯ متابعة'}

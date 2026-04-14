@@ -4,6 +4,7 @@ import {
   buildPeopleList,
   getReceiverColorClass,
 } from '../lib/people'
+import CopyButton from './CopyButton'
 
 function PersonTable({
   kind,
@@ -165,12 +166,15 @@ function PersonTable({
                 return (
                   <tr key={row.key}>
                     <td className={`person-name-cell ${colorClass}`}>
-                      <span className="person-name-text">
-                        {isReceiver && row.isTurkish ? (
-                          <span className="person-flag" title="مستلم تركي" style={{ marginInlineEnd: 4 }}>🇹🇷</span>
-                        ) : null}
-                        {row.name}
-                      </span>
+                      <div className="person-name-wrap">
+                        <span className="person-name-text">
+                          {isReceiver && row.isTurkish ? (
+                            <span className="person-flag" title="مستلم تركي" style={{ marginInlineEnd: 4 }}>🇹🇷</span>
+                          ) : null}
+                          {row.name}
+                        </span>
+                        <CopyButton text={row.name} />
+                      </div>
                     </td>
                     <td className="num-col">
                       {isEditing && !readOnly ? (
