@@ -410,11 +410,12 @@ function App() {
     }
   }, [isHydrated, isReadOnly, state])
 
-  // Viewer mode live updates — poll Supabase every 15 seconds AND whenever
-  // the tab regains focus, so the customer sees admin edits without
-  // manually refreshing. Read-only by design — no writes ever happen here.
+  // Viewer/public mode live updates — poll Supabase every 15 seconds AND
+  // whenever the tab regains focus, so external viewers see admin edits
+  // without manually refreshing. Read-only by design — no writes happen here.
   useEffect(() => {
-    if (!isViewerMode || !isHydrated) return
+    if (!isViewerMode && !isPublicList) return
+    if (!isHydrated) return
     if (typeof window === 'undefined') return
 
     let cancelled = false
@@ -424,7 +425,7 @@ function App() {
         const result = await loadPersistedState(FALLBACK_STATE, migrateState)
         if (cancelled) return
         if (result.loadError) return // silent failure — try again next poll
-        if (!isViewerCustomerValid(viewerCustomerId, result.state.customers)) {
+        if (isViewerMode && !isViewerCustomerValid(viewerCustomerId, result.state.customers)) {
           setViewerInvalid(true)
           return
         }
@@ -446,7 +447,7 @@ function App() {
       clearInterval(interval)
       document.removeEventListener('visibilitychange', onVisibilityChange)
     }
-  }, [isViewerMode, isHydrated, viewerCustomerId])
+  }, [isViewerMode, isPublicList, isHydrated, viewerCustomerId])
 
   const customersById = useMemo(
     () => new Map(customers.map((c) => [c.id, c])),

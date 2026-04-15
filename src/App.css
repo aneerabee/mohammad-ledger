@@ -4744,6 +4744,15 @@ tbody tr:hover {
   flex-direction: column;
   gap: 6px;
 }
+.public-list-intro {
+  margin: 0 auto 12px;
+  max-width: 520px;
+  font-size: 0.84rem;
+  line-height: 1.5;
+  color: #64748b;
+  text-align: center;
+}
+
 .public-row {
   display: flex;
   align-items: center;
@@ -4795,6 +4804,19 @@ tbody tr:hover {
   direction: ltr;
   unicode-bidi: plaintext;
   text-align: start;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.public-list-shell .copy-btn,
+.public-list-shell--tr .public-row-name .copy-btn {
+  flex: 0 0 auto !important;
+  width: auto !important;
+  font-size: 0.7rem;
+  padding: 3px 10px;
+  min-width: 92px;
+  height: 26px;
+  border-radius: 6px;
+  white-space: nowrap;
 }
 .public-row-counts {
   display: flex;

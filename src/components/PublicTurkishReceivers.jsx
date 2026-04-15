@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { buildPeopleList } from '../lib/people'
+import CopyButton from './CopyButton'
 
 export default function PublicTurkishReceivers({ transfers, receivers }) {
   const [query, setQuery] = useState('')
@@ -17,31 +18,33 @@ export default function PublicTurkishReceivers({ transfers, receivers }) {
   }, [rows, query])
 
   const totalCount = rows.length
-  const totalLegacy = rows.reduce((sum, r) => sum + (r.legacyCount || 0), 0)
-  const totalSystem = rows.reduce((sum, r) => sum + (r.systemCount || 0), 0)
-  const totalAll = totalLegacy + totalSystem
+  const totalAll = rows.reduce((sum, r) => sum + (r.total || 0), 0)
 
   return (
-    <div className="public-list-shell" dir="rtl">
+    <div className="public-list-shell public-list-shell--tr" dir="ltr" lang="tr">
       <header className="public-list-header">
-        <h1>🇹🇷 قائمة المستلمين الأتراك</h1>
+        <h1>🇹🇷 Türk Alıcılar Listesi</h1>
+        <p className="public-list-intro">
+          Bu liste Western Office sisteminden canlı olarak güncellenir.
+          Her alıcının toplam havale sayısını gösterir.
+        </p>
         <div className="public-list-summary">
-          <span className="public-chip"><strong>{totalCount}</strong> مستلم</span>
-          <span className="public-chip"><strong>{totalAll}</strong> حوالة إجمالاً</span>
+          <span className="public-chip"><strong>{totalCount}</strong> alıcı</span>
+          <span className="public-chip"><strong>{totalAll}</strong> toplam havale</span>
         </div>
       </header>
 
       <input
         className="public-search"
         type="search"
-        placeholder="ابحث باسم المستلم..."
+        placeholder="İsim ile ara..."
         value={query}
         onChange={(e) => setQuery(e.target.value)}
       />
 
       {filtered.length === 0 ? (
         <div className="public-empty">
-          {query ? 'لا توجد نتائج' : 'لا يوجد مستلمون أتراك بعد'}
+          {query ? 'Sonuç bulunamadı' : 'Henüz Türk alıcı yok'}
         </div>
       ) : (
         <ol className="public-list">
@@ -52,33 +55,26 @@ export default function PublicTurkishReceivers({ transfers, receivers }) {
                 <div className="public-row-name">
                   <span className="public-row-flag" aria-hidden="true">🇹🇷</span>
                   <span className="public-row-name-text">{row.name}</span>
-                </div>
-                <div className="public-row-counts">
-                  <span className="public-count public-count--total" title="المجموع">
-                    <strong>{row.total}</strong>
-                    <em>المجموع</em>
-                  </span>
-                  {row.legacyCount > 0 ? (
-                    <span className="public-count" title="قديم">
-                      {row.legacyCount}
-                      <em>قديم</em>
-                    </span>
-                  ) : null}
-                  {row.systemCount > 0 ? (
-                    <span className="public-count" title="نظام">
-                      {row.systemCount}
-                      <em>نظام</em>
-                    </span>
-                  ) : null}
+                  <CopyButton
+                    text={row.name}
+                    idleLabel="Kopyala"
+                    successLabel="✓ Kopyalandı"
+                    title={`İsmi kopyala: ${row.name}`}
+                    ariaLabel={`İsmi kopyala: ${row.name}`}
+                  />
                 </div>
               </div>
+              <span className="public-count public-count--total" title="Toplam havale">
+                <strong>{row.total}</strong>
+                <em>Toplam</em>
+              </span>
             </li>
           ))}
         </ol>
       )}
 
       <footer className="public-list-footer">
-        <span>القائمة تُحدَّث تلقائياً — Western Office</span>
+        <span>Liste otomatik güncellenir · Western Office</span>
       </footer>
     </div>
   )

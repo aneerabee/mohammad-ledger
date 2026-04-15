@@ -12,7 +12,14 @@ import { useRef, useState } from 'react'
   - stopPropagation on click so embedding this inside a clickable row
     (e.g. a customer card) doesn't also trigger the card's handler.
 */
-export default function CopyButton({ text, className = '', ariaLabel }) {
+export default function CopyButton({
+  text,
+  className = '',
+  ariaLabel,
+  idleLabel = 'نسخ',
+  successLabel = '✓ تم',
+  title,
+}) {
   const [copied, setCopied] = useState(false)
   const timeoutRef = useRef(null)
 
@@ -59,10 +66,10 @@ export default function CopyButton({ text, className = '', ariaLabel }) {
       type="button"
       className={`copy-btn${copied ? ' copy-btn--success' : ''} ${className}`.trim()}
       onClick={handleClick}
-      title={copied ? 'تم النسخ' : `نسخ "${text}"`}
+      title={title || (copied ? 'تم النسخ' : `نسخ "${text}"`)}
       aria-label={ariaLabel || `نسخ ${text}`}
     >
-      {copied ? '✓ تم' : 'نسخ'}
+      {copied ? successLabel : idleLabel}
     </button>
   )
 }
