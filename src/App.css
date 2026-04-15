@@ -3572,7 +3572,6 @@ tbody tr:hover {
 }
 @media (max-width: 560px) {
   .tc-edit-grid { grid-template-columns: 1fr; }
-  .tc-row--top, .tc-row--amounts { flex-direction: column; align-items: flex-start; }
 }
 
 /* ── Daily closing — compact + sub-tabs ── */
@@ -4282,4 +4281,378 @@ tbody tr:hover {
     align-items: stretch;
     gap: 8px;
   }
+}
+
+
+/* ═══════════════════════════════════════════════════════════════
+   MOBILE DENSITY PACK v2 — كثافة الهاتف الاحترافية
+   يستهدف ≤768px ويكثِّف العرض بأسلوب بنكي احترافي
+   ═══════════════════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+  /* ── Shell & panels ───────────────────────────────── */
+  .app-shell { padding: 6px; gap: 6px; max-width: 100%; }
+  .panel { padding: 8px; margin-bottom: 6px; border-radius: 10px; }
+  .panel-head { margin-bottom: 6px; gap: 6px; }
+  .panel-head h2, .panel-head h3 { font-size: 0.95rem; }
+
+  /* ── Topbar ──────────────────────────────────────── */
+  .topbar { padding: 6px 8px; gap: 6px; flex-wrap: wrap; }
+  .topbar h1 { font-size: 0.95rem; }
+  .topbar-actions { gap: 4px; }
+  .topbar-actions button { padding: 6px 10px; font-size: 0.78rem; }
+
+  /* ── Tab navigation (Segmented) — sticky + big targets ── */
+  .segmented {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    width: 100%;
+    display: flex;
+    gap: 2px;
+    padding: 3px;
+    backdrop-filter: blur(8px);
+    background: rgba(233, 240, 246, 0.98);
+    box-shadow: 0 2px 8px rgba(50, 76, 118, 0.06);
+  }
+  .segmented-btn {
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 9px 6px;
+    font-size: 0.78rem;
+    min-height: 38px;
+    text-align: center;
+  }
+  .segmented-btn span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .segmented-badge {
+    min-width: 14px;
+    height: 14px;
+    font-size: 0.58rem;
+    margin-right: 3px;
+    padding: 0 3px;
+  }
+
+  /* ── Stats hero ──────────────────────────────────── */
+  .stats-hero, .stats-hero-v2 { padding: 8px 10px; gap: 6px; border-radius: 10px; }
+  .stats-total-hero-value { font-size: 1.25rem; }
+  .stats-hero h2, .stats-hero h3 { font-size: 0.88rem; }
+  .mini-stat { padding: 4px 6px; font-size: 0.78rem; }
+  .money-chip { padding: 3px 6px; font-size: 0.78rem; gap: 3px; }
+  .stats-grid, .closing-grid { grid-template-columns: 1fr; gap: 6px; }
+
+  /* ── Transfer cards — الأهم: عرض أكثر حوالات في الشاشة ── */
+  .transfer-card-list { gap: 5px; }
+  .transfer-card { border-radius: 9px; }
+  .tc-stripe { width: 4px !important; }
+  .tc-body { padding: 7px 9px; gap: 5px; }
+  .tc-head { padding: 5px 9px; gap: 6px; }
+
+  /* الصف الأول: ref + status + sender→receiver بشكل مضغوط */
+  .tc-row {
+    gap: 6px;
+    flex-direction: row !important;
+    align-items: center !important;
+    flex-wrap: wrap;
+  }
+  .tc-row--top { gap: 6px; flex-wrap: wrap; align-items: center !important; flex-direction: row !important; }
+  .tc-row--amounts {
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+  .tc-ref-block { font-size: 0.72rem; gap: 2px; }
+  .tc-status-pill { padding: 2px 7px; font-size: 0.68rem; }
+  .tc-dup-badge { padding: 2px 6px; font-size: 0.64rem; }
+
+  /* إخفاء labels "المرسل/المستلم" على الموبايل، الاعتماد على السهم */
+  .tc-flow {
+    gap: 4px;
+    padding: 3px 6px;
+    font-size: 0.8rem;
+    border-radius: 6px;
+    flex: 1 1 100%;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    flex-wrap: nowrap;
+    overflow: hidden;
+  }
+  .tc-flow-label {
+    position: absolute;
+    width: 1px; height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+  }
+  .tc-sender, .tc-receiver {
+    font-size: 0.8rem;
+    font-weight: 700;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+    max-width: 45%;
+    flex: 1 1 auto;
+  }
+  .tc-arrow { font-size: 0.9rem; flex: 0 0 auto; }
+
+  /* ref-block: صغير ومكوّن */
+  .tc-ref-block { min-width: 0; flex: 0 0 auto; }
+  .tc-ref { font-size: 0.78rem; }
+  .tc-date { font-size: 0.66rem; }
+
+  /* صف المبالغ: 4 شيبس في سطر واحد */
+  .tc-row--amounts {
+    gap: 4px !important;
+    flex-wrap: nowrap !important;
+    padding-top: 5px !important;
+    justify-content: space-between;
+  }
+  .tc-amount-chip, .amount-chip {
+    padding: 3px 5px;
+    font-size: 0.7rem;
+    gap: 1px;
+    border-radius: 6px;
+    min-width: 0 !important;
+    flex: 1 1 auto;
+  }
+  .amount-chip-label { font-size: 0.58rem !important; }
+  .amount-chip-value { font-size: 0.76rem !important; }
+  .tc-amount-chip .label, .amount-chip .label { font-size: 0.58rem; }
+  .tc-amount-sep { display: none; } /* السهم بين التشب غير ضروري على الموبايل */
+
+  .tc-edit-grid { gap: 6px; }
+  /* الأزرار جنب بعض */
+  .tc-actions {
+    gap: 4px !important;
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    flex-wrap: nowrap !important;
+  }
+  .tc-actions button {
+    padding: 6px 8px;
+    font-size: 0.74rem;
+    width: 100%;
+    min-width: 0;
+  }
+
+  /* تخفيف تأثير customer-slot في الصف */
+  .tc-customer-slot { flex: 0 0 auto; }
+
+  /* ── Customer cards ───────────────────────────────── */
+  .customer-card-v2 { border-radius: 10px; }
+  .customer-header { padding: 9px 10px; gap: 9px; }
+  .customer-avatar { width: 40px; height: 40px; font-size: 0.95rem; }
+  .customer-name { font-size: 0.95rem; }
+  .customer-sub { margin-top: 2px; font-size: 0.7rem; }
+  .customer-stats { gap: 4px; }
+  .health-badge { padding: 2px 7px; font-size: 0.64rem; }
+  /* الأزرار الخمسة في صف واحد بدل عمودي */
+  .customer-actions-v2 {
+    flex-direction: row !important;
+    flex-wrap: wrap;
+    gap: 4px;
+    justify-content: space-around;
+  }
+  .customer-btn {
+    flex: 1 1 0 !important;
+    width: auto !important;
+    padding: 5px 4px !important;
+    font-size: 0.7rem !important;
+    gap: 2px !important;
+    min-width: 0 !important;
+    justify-content: center;
+  }
+  .customer-btn span { font-size: 0.7rem; }
+  /* إزالة رسم "غير مدفوع / الرصيد الجاري" إلى صف ضيق */
+  .customer-balance-row { gap: 6px !important; padding: 6px 8px !important; }
+  .customer-balance-row .balance-label { font-size: 0.68rem !important; }
+  .customer-balance-row .balance-value { font-size: 0.95rem !important; }
+
+  /* ── People tab — إظهار كل الأرقام بدون scroll جانبي ── */
+  .people-table-wrap { padding: 0; overflow-x: visible; }
+  .people-table { table-layout: auto; width: 100%; font-size: 0.72rem; }
+  .people-table th, .people-table td {
+    padding: 5px 3px !important;
+    font-size: 0.72rem !important;
+    white-space: nowrap;
+  }
+  .people-table .num-col { width: auto !important; padding: 5px 2px !important; }
+  .people-table .action-col { width: auto !important; padding: 5px 2px !important; }
+  .people-table .person-name-cell { padding: 5px 3px !important; }
+  .people-table .person-name-text {
+    padding: 1px 4px !important;
+    font-size: 0.75rem !important;
+    max-width: 110px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: inline-block;
+    vertical-align: middle;
+  }
+  .people-edit-input { width: 38px !important; font-size: 0.72rem !important; padding: 3px 2px !important; }
+  .people-toolbar {
+    padding: 5px 6px;
+    gap: 5px;
+    flex-wrap: wrap;
+    width: 100%;
+    box-sizing: border-box;
+  }
+  .people-add-inline {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    width: 100%;
+    box-sizing: border-box;
+  }
+  .people-add-inline input {
+    min-width: 0 !important;
+    flex: 1 1 100px;
+    font-size: 0.78rem;
+    padding: 5px 8px;
+    width: auto;
+  }
+  .people-add-inline .people-count-input {
+    flex: 0 0 55px;
+    min-width: 55px !important;
+    max-width: 60px;
+  }
+  .people-add-inline button {
+    flex: 0 0 auto;
+    padding: 5px 10px;
+    font-size: 0.78rem;
+    white-space: nowrap;
+  }
+  .people-turkish-toggle { flex: 0 0 auto; font-size: 0.75rem !important; }
+  .people-toolbar-spacer { display: none; }
+  .people-search-input {
+    max-width: none;
+    flex: 1 1 120px;
+    font-size: 0.78rem;
+    padding: 5px 8px;
+    width: auto;
+  }
+  .people-totals {
+    font-size: 0.68rem;
+    gap: 6px;
+    flex-wrap: wrap;
+    width: 100%;
+    justify-content: space-between;
+  }
+  .people-toolbar > button {
+    flex: 0 0 auto;
+    padding: 5px 10px;
+    font-size: 0.74rem;
+  }
+  .copy-btn { padding: 1px 5px; font-size: 0.65rem; min-width: 0; }
+
+  /* ── Issue cards ──────────────────────────────────── */
+  .issue-card { border-radius: 10px; }
+  .issue-card-body { padding: 7px 9px; gap: 5px; }
+  .issue-card-head { padding: 6px 9px; }
+  .issue-age { padding: 2px 6px; font-size: 0.64rem; }
+
+  /* ── Settlements ──────────────────────────────────── */
+  .settle-card { border-radius: 10px; }
+  .settle-card-header { padding: 9px 10px; gap: 9px; }
+  .settle-avatar { width: 36px; height: 36px; font-size: 0.9rem; }
+  .settle-totals { gap: 6px; flex-wrap: wrap; }
+  .settle-item-list { padding: 4px 6px 8px; }
+  .settle-item { gap: 7px; padding: 5px 7px; font-size: 0.78rem; }
+  .settlement-header, .settlement-footer { gap: 6px; }
+
+  /* ── Closing ─────────────────────────────────────── */
+  .closing-kpi-strip { gap: 6px; }
+  .closing-kpi { padding: 6px 10px; font-size: 0.82rem; }
+  .closing-collapsible-head { padding: 7px 9px; gap: 6px; }
+  .closing-section { gap: 6px; }
+  .closing-section h3 { margin-bottom: 4px; font-size: 0.92rem; }
+  .closing-quick-stat { padding: 5px 8px; font-size: 0.82rem; }
+  .closing-mini-stats { gap: 4px; }
+
+  /* ── Attention board ──────────────────────────────── */
+  .attention-alert { padding: 6px 8px; gap: 6px; font-size: 0.8rem; }
+
+  /* ── Flow nodes ───────────────────────────────────── */
+  .flow-step { min-width: 64px; }
+  .flow-node { min-width: 42px; padding: 3px 6px; font-size: 0.76rem; }
+
+  /* ── Forms & filters ──────────────────────────────── */
+  .inline-form { gap: 6px; }
+  .filter-bar { gap: 4px; padding: 4px; }
+  button { padding: 6px 10px; font-size: 0.8rem; }
+  input, select, textarea { font-size: 0.82rem; padding: 5px 7px; }
+
+  /* ── Tables generic ───────────────────────────────── */
+  table th, table td { padding: 5px 5px; font-size: 0.78rem; }
+  .empty-state, .empty-table { padding: 14px 10px; font-size: 0.84rem; }
+}
+
+/* ──────────────────────────────────────────────────────
+   هواتف ضيقة (≤480px) — تكثيف إضافي
+   ────────────────────────────────────────────────────── */
+@media (max-width: 480px) {
+  .app-shell { padding: 4px; gap: 4px; }
+  .panel { padding: 6px; margin-bottom: 4px; }
+  .topbar h1 { font-size: 0.88rem; }
+
+  /* Tabs — خط أصغر لكن ارتفاع مريح */
+  .segmented-btn { padding: 8px 4px; font-size: 0.72rem; min-height: 36px; }
+
+  .stats-hero, .stats-hero-v2 { padding: 6px 8px; }
+  .stats-total-hero-value { font-size: 1.05rem; }
+
+  /* Transfer cards — أقصى كثافة */
+  .tc-body { padding: 6px 8px; gap: 4px; }
+  .tc-head { padding: 4px 7px; }
+  .tc-row--top { gap: 5px; }
+  .tc-row--amounts { gap: 4px; }
+  .tc-amount-chip, .amount-chip { padding: 2px 6px; font-size: 0.72rem; }
+  .tc-status-pill { padding: 2px 6px; font-size: 0.66rem; }
+  .tc-flow { font-size: 0.76rem; padding: 2px 5px; }
+  .tc-sender, .tc-receiver { font-size: 0.76rem; }
+
+  /* People — أقصى ضغط للأعمدة */
+  .people-table th, .people-table td {
+    padding: 4px 2px !important;
+    font-size: 0.68rem !important;
+  }
+  .people-table .person-name-text { max-width: 90px; font-size: 0.72rem !important; }
+  .people-edit-input { width: 32px !important; font-size: 0.68rem !important; }
+
+  /* Customer cards */
+  .customer-header { padding: 7px 9px; gap: 7px; }
+  .customer-avatar { width: 36px; height: 36px; font-size: 0.88rem; }
+  .customer-name { font-size: 0.9rem; }
+
+  /* Issues */
+  .issue-card-body { padding: 6px 8px; }
+
+  /* Settlements */
+  .settle-card-header { padding: 7px 9px; gap: 7px; }
+  .settle-avatar { width: 32px; height: 32px; }
+  .settle-item { padding: 4px 6px; font-size: 0.74rem; }
+
+  /* Closing */
+  .closing-collapsible-head { padding: 6px 8px; }
+  .closing-kpi { padding: 5px 8px; font-size: 0.78rem; }
+
+  /* Filters */
+  .filter-select { min-width: 0 !important; font-size: 0.74rem; padding: 4px 5px; }
+  .filter-date { min-width: 0 !important; font-size: 0.74rem; padding: 4px 5px; }
+  .search-input { min-width: 90px !important; }
+  button { padding: 5px 8px; font-size: 0.76rem; }
+
+  table th, table td { padding: 4px 3px; font-size: 0.74rem; }
+  .empty-state, .empty-table { padding: 10px 8px; font-size: 0.78rem; }
+}
+
+/* ──────────────────────────────────────────────────────
+   Viewer mode (رابط الزبون Bendris) — نفس الكثافة + إخفاء
+   ────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  body.viewer-mode .app-shell,
+  .viewer-mode.app-shell,
+  .viewer-mode .app-shell { padding: 5px; gap: 5px; }
+  .viewer-mode .panel { padding: 7px; margin-bottom: 5px; }
+  .viewer-mode .topbar { padding: 5px 7px; }
+  .viewer-mode .segmented-btn { padding: 9px 6px; min-height: 38px; }
 }

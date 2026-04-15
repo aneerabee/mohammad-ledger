@@ -1052,7 +1052,7 @@ function App() {
   // Invalid viewer URL (customer not found / deleted) — show error page only
   if (viewerInvalid) {
     return (
-      <div className="app-shell" dir="rtl">
+      <div className={`app-shell${isViewerMode ? ' viewer-mode' : ''}`} dir="rtl">
         <div className="error-banner" style={{ marginTop: 40, fontSize: '1.05rem', padding: 24 }}>
           🚫 هذا الرابط غير صالح — الزبون غير موجود أو تم حذفه. تواصل مع المكتب للحصول على رابط جديد.
         </div>
@@ -1061,7 +1061,7 @@ function App() {
   }
 
   return (
-    <div className="app-shell" dir="rtl">
+    <div className={`app-shell${isViewerMode ? ' viewer-mode' : ''}`} dir="rtl">
       <header className="topbar">
         <div className="topbar-title">
           <h1>Western Office</h1>
