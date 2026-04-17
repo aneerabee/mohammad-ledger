@@ -795,6 +795,34 @@ tbody tr:hover {
 .settled-panel { background: linear-gradient(180deg, rgba(246, 250, 252, 0.98), rgba(236, 243, 248, 0.86)); }
 .settled-toggle h2 { display: flex; align-items: center; gap: 6px; font-size: 0.95rem; color: var(--ink-soft); }
 .toggle-arrow { font-size: 0.75rem; color: var(--ink-faint); }
+.settled-panel__note {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+  padding: 10px 12px;
+  border: 1px solid rgba(8, 145, 178, 0.18);
+  border-radius: 12px;
+  background: linear-gradient(135deg, rgba(236, 254, 255, 0.96), rgba(240, 249, 255, 0.92));
+  color: #155e75;
+  font-size: 0.82rem;
+}
+.settled-panel__note strong {
+  color: #0f766e;
+}
+.settled-panel__note-icon {
+  width: 26px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #0ea5b7, #0891b2);
+  color: #fff;
+  font-weight: 900;
+  flex: 0 0 auto;
+  box-shadow: 0 8px 18px rgba(8, 145, 178, 0.2);
+}
 
 /* ─── Daily closing ─── */
 .closing-date-label { margin: 0 0 10px; color: var(--ink-soft); font-size: 0.88rem; }
@@ -3009,10 +3037,19 @@ tbody tr:hover {
 }
 
 .transfer-card.tc-settled {
-  background: linear-gradient(to left, #fff, #f0f9ff 70%);
-  border-color: #bae6fd;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.98), rgba(240, 249, 255, 0.94)),
+    repeating-linear-gradient(
+      -45deg,
+      rgba(8, 145, 178, 0.04) 0,
+      rgba(8, 145, 178, 0.04) 10px,
+      rgba(255, 255, 255, 0) 10px,
+      rgba(255, 255, 255, 0) 20px
+    );
+  border-color: #7dd3fc;
   animation: none;
-  opacity: 0.95;
+  opacity: 0.97;
+  box-shadow: 0 10px 24px rgba(8, 145, 178, 0.08), inset 0 1px 0 rgba(255,255,255,0.8);
 }
 
 /* The colored stripe on the start edge (right side in RTL) — wider and more prominent */
@@ -3195,14 +3232,51 @@ tbody tr:hover {
 }
 
 .tc-status-pill--settled {
-  background: linear-gradient(135deg, #cffafe, #a5f3fc);
-  border-color: #0891b2;
-  color: #155e75;
-  box-shadow: 0 2px 6px rgba(8, 145, 178, 0.22);
+  background: linear-gradient(135deg, #0ea5b7, #0891b2);
+  border-color: #0e7490;
+  color: #ffffff;
+  box-shadow: 0 8px 18px rgba(8, 145, 178, 0.24);
 }
 .tc-status-pill--settled .tc-status-icon {
-  background: #0891b2;
-  color: #fff;
+  background: #ffffff;
+  color: #0e7490;
+}
+
+.tc-settled-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding-top: 8px;
+  border-top: 1px dashed rgba(8, 145, 178, 0.22);
+}
+
+.tc-settled-meta__badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, rgba(236, 254, 255, 0.98), rgba(224, 242, 254, 0.92));
+  color: #0f766e;
+  border: 1px solid rgba(14, 116, 144, 0.18);
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+.tc-settled-meta__dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #14b8a6, #0f766e);
+  box-shadow: 0 0 0 4px rgba(20, 184, 166, 0.12);
+}
+
+.tc-settled-meta__date {
+  color: #0f766e;
+  font-size: 0.76rem;
+  font-weight: 700;
 }
 
 .tc-dup-badge {
@@ -4989,4 +5063,3 @@ tbody tr:hover {
     gap: 5px;
   }
 }
-

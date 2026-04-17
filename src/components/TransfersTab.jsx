@@ -533,6 +533,14 @@ export default function TransfersTab({
             </button>
           </div>
 
+          <div className="settled-panel__note">
+            <span className="settled-panel__note-icon" aria-hidden="true">✓</span>
+            <span>
+              هذه الحوالات <strong>تم سحبها ثم تمت تسويتها بالكامل</strong>، لذلك تظهر هنا كأرشيف واضح
+              منفصل عن الحوالات النشطة.
+            </span>
+          </div>
+
           {isSettledSectionOpen ? (
             <div className="transfer-card-list transfer-card-list--settled">
               {settledTransfers.map((t) => {
@@ -600,6 +608,15 @@ export default function TransfersTab({
                           <span className="tc-note-text">{t.note}</span>
                         </div>
                       ) : null}
+                      <div className="tc-settled-meta">
+                        <span className="tc-settled-meta__badge">
+                          <span className="tc-settled-meta__dot" aria-hidden="true" />
+                          تمت التسوية بالكامل
+                        </span>
+                        <span className="tc-settled-meta__date">
+                          أغلقت في {formatDate(t.settledAt || t.updatedAt)}
+                        </span>
+                      </div>
                     </div>
                   </article>
                 )
