@@ -35,8 +35,8 @@ const movementLabels = {
 }
 
 const sectionTabs = [
-  { key: 'overview', label: 'ملخص' },
   { key: 'entry', label: 'إدخال' },
+  { key: 'overview', label: 'ملخص' },
   { key: 'accounts', label: 'الأرصدة' },
   { key: 'review', label: 'مراجعة' },
   { key: 'history', label: 'السجل' },
@@ -86,6 +86,13 @@ const accountPresets = [
 ]
 
 const accountDetailOptions = ['كاش', 'مصرفي', 'دولار', 'حساب', 'أصل', 'مصروف']
+
+const accountClassificationOptions = accountPresets.map((preset) => ({
+  value: `${preset.type}|${preset.valueKind}`,
+  label: preset.title,
+  type: preset.type,
+  valueKind: preset.valueKind,
+}))
 
 const accountGroupTabs = [
   { key: 'people', label: 'الناس', title: 'الناس', subtitle: 'كل الأشخاص والجهات، حتى الحسابات المسكرة تظهر هنا للتأكد.' },
@@ -181,6 +188,16 @@ function emptyAccountDraft() {
 
 function accountLabel(account) {
   return account ? `${account.ownerName} / ${account.subAccountName}` : ''
+}
+
+function classificationValue(account) {
+  return `${account?.type || ACCOUNT_TYPES.PERSON}|${account?.valueKind || VALUE_KINDS.RECEIVABLE}`
+}
+
+function parseClassification(value) {
+  const [type, valueKind] = String(value || '').split('|')
+  const option = accountClassificationOptions.find((item) => item.type === type && item.valueKind === valueKind)
+  return option || accountClassificationOptions[0]
 }
 
 function nonZero(bucket) {
@@ -294,6 +311,7 @@ function AccountSearchSelect({ label, value, accounts, onChange, allowEmpty = tr
   const visibleAccounts = selectedAccount && !filteredAccounts.some((account) => account.id === selectedAccount.id)
     ? [selectedAccount, ...filteredAccounts]
     : filteredAccounts
+  const resultAccounts = normalizedQuery ? visibleAccounts.slice(0, 6) : []
 
   return (
     <div className="ml3-account-picker">
@@ -312,7 +330,7 @@ function AccountSearchSelect({ label, value, accounts, onChange, allowEmpty = tr
         {selectedAccount ? accountLabel(selectedAccount) : 'لم يتم اختيار طرف'}
       </div>
       <div className="ml3-picker-results">
-        {visibleAccounts.slice(0, 8).map((account) => (
+        {resultAccounts.map((account) => (
           <button
             type="button"
             key={account.id}
@@ -320,9 +338,10 @@ function AccountSearchSelect({ label, value, accounts, onChange, allowEmpty = tr
             onClick={() => onChange(account.id)}
           >
             <strong>{account.ownerName}</strong>
-            <span>{account.subAccountName}</span>
+            <span>{account.subAccountName} · {accountTypeLabels[account.type] || account.type}</span>
           </button>
         ))}
+        {normalizedQuery && resultAccounts.length === 0 ? <p>لا توجد نتيجة</p> : null}
       </div>
     </div>
   )
@@ -361,11 +380,11 @@ function AccountProfile({ bucket, movements, accounts, onClose, onEditMovement, 
 
         <div className="ml3-profile-facts">
           <div>
-            <span>قراءة الحساب</span>
-            <strong>{valueKindLabels[account.valueKind] || account.valueKind}</strong>
+            <span>التصنيف</span>
+            <strong>{accountTypeLabels[account.type] || account.type}</strong>
           </div>
           <div>
-            <span>عدد التأثيرات</span>
+            <span>الحركات</span>
             <strong>{postedCount}</strong>
           </div>
           <div>
@@ -386,24 +405,11 @@ function AccountProfile({ bucket, movements, accounts, onClose, onEditMovement, 
               <input name="subAccountName" defaultValue={account.subAccountName} />
             </label>
             <label>
-              نوع الحساب
-              <select name="type" defaultValue={account.type}>
-                <option value={ACCOUNT_TYPES.PERSON}>شخص / جهة</option>
-                <option value={ACCOUNT_TYPES.CASH}>كاش</option>
-                <option value={ACCOUNT_TYPES.BANK}>مصرف خاص بي</option>
-                <option value={ACCOUNT_TYPES.EXPENSE}>مصروف</option>
-                <option value={ACCOUNT_TYPES.ASSET}>أصل</option>
-                <option value={ACCOUNT_TYPES.PROJECT}>مشروع</option>
-              </select>
-            </label>
-            <label>
-              يظهر كـ
-              <select name="valueKind" defaultValue={account.valueKind}>
-                <option value={VALUE_KINDS.RECEIVABLE}>دين / رصيد شخص</option>
-                <option value={VALUE_KINDS.CASH}>مكان كاش</option>
-                <option value={VALUE_KINDS.BANK}>مكان مصرفي</option>
-                <option value={VALUE_KINDS.EXPENSE}>مصروف نهائي</option>
-                <option value={VALUE_KINDS.ASSET}>أصل / قيمة</option>
+              التصنيف
+              <select name="classification" defaultValue={classificationValue(account)}>
+                {accountClassificationOptions.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
               </select>
             </label>
           </div>
@@ -653,7 +659,8 @@ export default function MohammadLedgerApp() {
   const [initialState] = useState(loadInitialLedgerState)
   const [accounts, setAccounts] = useState(initialState.accounts)
   const [movements, setMovements] = useState(initialState.movements)
-  const [activeSection, setActiveSection] = useState('overview')
+  const [activeSection, setActiveSection] = useState('entry')
+  const [activeEntryMode, setActiveEntryMode] = useState('movement')
   const [activeAccountGroup, setActiveAccountGroup] = useState('people')
   const [movementDraft, setMovementDraft] = useState(() => emptyMovementDraft())
   const [accountDraft, setAccountDraft] = useState(emptyAccountDraft)
@@ -860,11 +867,12 @@ export default function MohammadLedgerApp() {
   function updateAccountClassification(event, accountId) {
     event.preventDefault()
     const formData = new FormData(event.currentTarget)
+    const classification = parseClassification(formData.get('classification'))
     const nextAccount = {
       ownerName: String(formData.get('ownerName') || '').trim(),
       subAccountName: String(formData.get('subAccountName') || '').trim(),
-      type: String(formData.get('type') || ACCOUNT_TYPES.PERSON),
-      valueKind: String(formData.get('valueKind') || VALUE_KINDS.RECEIVABLE),
+      type: classification.type,
+      valueKind: classification.valueKind,
     }
     const candidateAccounts = accounts.map((account) =>
       account.id === accountId
@@ -1005,27 +1013,7 @@ export default function MohammadLedgerApp() {
 
   function renderSection() {
     if (activeSection === 'entry') {
-      return (
-        <section className="ml3-panel ml3-entry-guide">
-          <div className="ml3-panel-head">
-            <div>
-              <h2>إدخال فقط</h2>
-              <p>هنا تضيف حركة أو حساب جديد. باقي الأقسام للعرض والمراجعة فقط.</p>
-            </div>
-            <span>واضح</span>
-          </div>
-          <div className="ml3-entry-guide-grid">
-            <div>
-              <strong>الحركة</strong>
-              <span>اختر النوع، المبلغ، الطرفين، ثم راقب التأثير قبل الحفظ.</span>
-            </div>
-            <div>
-              <strong>الحساب الجديد</strong>
-              <span>ابدأ بتحديد هل هو شخص، كاش، مصرفي، أصل، أو مصروف.</span>
-            </div>
-          </div>
-        </section>
-      )
+      return null
     }
     if (activeSection === 'accounts') return renderAccountsSection()
     if (activeSection === 'review') {
@@ -1176,7 +1164,7 @@ export default function MohammadLedgerApp() {
             </span>
             <div>
             <span>دفتر محمد</span>
-            <h1>الأرصدة الآن</h1>
+            <h1>{activeSection === 'entry' ? 'إدخال حركة' : 'الأرصدة الآن'}</h1>
             </div>
           </div>
           <div className="ml3-top-actions">
@@ -1185,20 +1173,24 @@ export default function MohammadLedgerApp() {
           </div>
         </header>
 
-        <section className="ml3-metrics">
-          <MetricChip label="كاش" value={totals.cash} tone="cash" />
-          <MetricChip label="مصرفي" value={totals.bank} tone="bank" />
-          <MetricChip label="أقبض" value={totals.peopleOweMe} tone="positive" />
-          <MetricChip label="أدفع" value={totals.iOwePeople} tone="negative" />
-          <MetricChip label="أصول" value={totals.assets} tone="asset" />
-          <MetricChip label="صرف" value={totals.expenses} tone="expense" />
-        </section>
+        {activeSection !== 'entry' ? (
+          <>
+            <section className="ml3-metrics">
+              <MetricChip label="كاش" value={totals.cash} tone="cash" />
+              <MetricChip label="مصرفي" value={totals.bank} tone="bank" />
+              <MetricChip label="أقبض" value={totals.peopleOweMe} tone="positive" />
+              <MetricChip label="أدفع" value={totals.iOwePeople} tone="negative" />
+              <MetricChip label="أصول" value={totals.assets} tone="asset" />
+              <MetricChip label="صرف" value={totals.expenses} tone="expense" />
+            </section>
 
-        <AlertBoard
-          reviewAccounts={balancesByKind.review}
-          reviewMovements={reviewMovements}
-          externalMissing={unresolvedExternalAccounts}
-        />
+            <AlertBoard
+              reviewAccounts={balancesByKind.review}
+              reviewMovements={reviewMovements}
+              externalMissing={unresolvedExternalAccounts}
+            />
+          </>
+        ) : null}
 
         <nav className="ml3-tabs" aria-label="أقسام الدفتر">
           {sectionTabs.map((tab) => (
@@ -1216,7 +1208,25 @@ export default function MohammadLedgerApp() {
         <section className={`ml3-layout ${activeSection === 'entry' ? 'is-entry' : 'is-content-only'}`}>
           {activeSection === 'entry' ? (
           <aside className="ml3-entry">
-            <form className="ml3-entry-card" onSubmit={saveMovement}>
+            {feedback ? <div className="ml3-feedback">{feedback}</div> : null}
+            <div className="ml3-entry-mode">
+              <button
+                type="button"
+                className={activeEntryMode === 'movement' ? 'is-active' : ''}
+                onClick={() => setActiveEntryMode('movement')}
+              >
+                إدخال حركة
+              </button>
+              <button
+                type="button"
+                className={activeEntryMode === 'account' ? 'is-active' : ''}
+                onClick={() => setActiveEntryMode('account')}
+              >
+                حساب جديد
+              </button>
+            </div>
+            {activeEntryMode === 'movement' ? (
+            <form className="ml3-entry-card ml3-entry-card--movement" onSubmit={saveMovement}>
               <div className="ml3-entry-head">
                 <div>
                   <span>إضافة حركة</span>
@@ -1313,7 +1323,9 @@ export default function MohammadLedgerApp() {
                 {preview.validation.ok ? 'تأكيد وحفظ الحركة' : 'حفظ كحركة معلقة'}
               </button>
             </form>
+            ) : null}
 
+            {activeEntryMode === 'account' ? (
             <form className="ml3-add-account" onSubmit={addAccount}>
               <div className="ml3-entry-head">
                 <div>
@@ -1360,13 +1372,16 @@ export default function MohammadLedgerApp() {
               </div>
               <button type="submit">إضافة حساب</button>
             </form>
+            ) : null}
           </aside>
           ) : null}
 
+          {activeSection !== 'entry' ? (
           <section className="ml3-content">
             {feedback ? <div className="ml3-feedback">{feedback}</div> : null}
             {renderSection()}
           </section>
+          ) : null}
         </section>
         <AccountProfile
           bucket={selectedBucket}

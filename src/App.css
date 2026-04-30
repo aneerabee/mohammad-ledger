@@ -5538,7 +5538,8 @@ tbody tr:hover {
 }
 
 .ml3-layout.is-entry {
-  grid-template-columns: minmax(300px, 390px) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 560px);
+  justify-content: center;
 }
 
 .ml3-content,
@@ -5553,20 +5554,46 @@ tbody tr:hover {
 
 .ml3-entry {
   display: grid;
-  gap: 8px;
+  gap: 6px;
   position: sticky;
   top: 8px;
+}
+
+.ml3-entry-mode {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 5px;
+  padding: 4px;
+  border-radius: 10px;
+  background: #e9eee8;
+}
+
+.ml3-entry-mode button {
+  border: 0;
+  border-radius: 8px;
+  min-height: 30px;
+  background: transparent;
+  color: #39473f;
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 950;
+  cursor: pointer;
+}
+
+.ml3-entry-mode button.is-active {
+  background: #25352d;
+  color: #ffffff;
 }
 
 .ml3-entry-card,
 .ml3-add-account,
 .ml3-panel {
-  padding: 8px;
+  padding: 7px;
 }
 
 .ml3-entry-card {
   display: grid;
-  gap: 6px;
+  gap: 5px;
 }
 
 .ml3-entry-head b {
@@ -5585,8 +5612,8 @@ tbody tr:hover {
 
 .ml3-quick-actions {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 5px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 4px;
 }
 
 .ml3-quick-actions button,
@@ -5597,7 +5624,7 @@ tbody tr:hover {
   border: 0;
   border-radius: 10px;
   min-height: 30px;
-  padding: 5px 8px;
+  padding: 5px 6px;
   font: inherit;
   font-weight: 950;
   font-size: 0.82rem;
@@ -5646,22 +5673,22 @@ tbody tr:hover {
 
 .ml3-route-picker {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) 42px minmax(0, 1fr);
   gap: 5px;
   align-items: end;
 }
 
 .ml3-account-picker {
   display: grid;
-  gap: 5px;
-  border-radius: 12px;
-  padding: 7px;
+  gap: 4px;
+  border-radius: 10px;
+  padding: 6px;
   background: #f8faf7;
   border: 1px solid #e1e9df;
 }
 
 .ml3-account-picker input {
-  min-height: 30px;
+  min-height: 28px;
 }
 
 .ml3-picker-head {
@@ -5689,7 +5716,7 @@ tbody tr:hover {
 
 .ml3-picked-account {
   border-radius: 9px;
-  padding: 5px 7px;
+  padding: 4px 7px;
   background: #25352d;
   color: #ffffff;
   font-weight: 900;
@@ -5701,21 +5728,23 @@ tbody tr:hover {
 
 .ml3-picker-results {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 5px;
-  max-height: 150px;
+  grid-template-columns: 1fr;
+  gap: 3px;
+  max-height: 132px;
   overflow: auto;
 }
 
 .ml3-picker-results button {
   border: 1px solid #d9e1d7;
-  border-radius: 9px;
+  border-radius: 8px;
   background: #ffffff;
   color: #17211c;
-  min-height: 42px;
-  padding: 5px 7px;
+  min-height: 34px;
+  padding: 4px 7px;
   display: grid;
-  gap: 1px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px;
+  align-items: center;
   text-align: inherit;
   cursor: pointer;
 }
@@ -5733,16 +5762,27 @@ tbody tr:hover {
   white-space: nowrap;
 }
 
+.ml3-picker-results strong {
+  font-size: 0.78rem;
+}
+
 .ml3-picker-results span {
   color: #68756f;
   font-size: 0.68rem;
+}
+
+.ml3-picker-results p {
+  margin: 0;
+  color: #68756f;
+  font-size: 0.74rem;
+  font-weight: 850;
 }
 
 .ml3-swap {
   border: 0;
   border-radius: 10px;
   min-height: 32px;
-  padding: 5px 8px;
+  padding: 5px 4px;
   background: #e9eee8;
   color: #39473f;
   font: inherit;
@@ -5757,7 +5797,7 @@ tbody tr:hover {
 .ml3-add-account input,
 .ml3-add-account select {
   width: 100%;
-  min-height: 32px;
+  min-height: 30px;
   border: 1px solid #d9e1d7;
   border-radius: 10px;
   background: #fbfdf9;
@@ -5768,16 +5808,18 @@ tbody tr:hover {
 }
 
 .ml3-entry-card textarea {
-  min-height: 42px;
+  min-height: 34px;
   resize: vertical;
 }
 
 .ml3-preview {
   border-radius: 12px;
-  padding: 6px;
+  padding: 5px;
   display: grid;
-  gap: 5px;
-  font-size: 0.78rem;
+  gap: 3px;
+  font-size: 0.74rem;
+  max-height: 116px;
+  overflow: auto;
 }
 
 .ml3-preview.is-ok { background: #ecf6ee; }
@@ -5791,7 +5833,7 @@ tbody tr:hover {
 .ml3-effect {
   display: grid;
   grid-template-columns: minmax(0, 1fr) repeat(3, minmax(58px, auto));
-  gap: 6px;
+  gap: 4px;
   align-items: center;
   padding-top: 5px;
   border-top: 1px solid rgba(37, 53, 45, 0.12);
@@ -5819,7 +5861,7 @@ tbody tr:hover {
 
 .ml3-add-account {
   display: grid;
-  gap: 6px;
+  gap: 5px;
 }
 
 .ml3-account-presets {
@@ -6755,11 +6797,11 @@ tbody tr:hover {
 
   .ml3-entry {
     position: static;
-    order: 2;
+    order: 1;
   }
 
   .ml3-content {
-    order: 1;
+    order: 2;
   }
 }
 
@@ -6773,7 +6815,6 @@ tbody tr:hover {
   .ml3-account-row,
   .ml3-effect,
   .ml3-field-pair,
-  .ml3-route-picker,
   .ml3-review-card-head,
   .ml3-decision-grid,
   .ml3-review-row {
@@ -6793,6 +6834,10 @@ tbody tr:hover {
 
   .ml3-topbar h1 {
     font-size: 1.12rem;
+  }
+
+  .ml3-topbar {
+    padding-bottom: 5px;
   }
 
   .ml3-brand-mark {
@@ -6858,6 +6903,15 @@ tbody tr:hover {
 
   .ml3-swap {
     justify-self: stretch;
+  }
+
+  .ml3-quick-actions {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .ml3-quick-actions button {
+    font-size: 0.7rem;
+    padding-inline: 3px;
   }
 
   .ml3-effect b,
