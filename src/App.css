@@ -5236,6 +5236,45 @@ tbody tr:hover {
   padding: 8px 0 10px;
 }
 
+.ml3-brand {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+}
+
+.ml3-brand-mark {
+  width: 42px;
+  height: 42px;
+  border-radius: 13px;
+  background: #16392d;
+  color: #f7f3e8;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  box-shadow: inset 0 0 0 1px rgba(247, 243, 232, 0.14), 0 12px 24px rgba(22, 57, 45, 0.16);
+}
+
+.ml3-brand-mark svg {
+  width: 28px;
+  height: 28px;
+  fill: none;
+}
+
+.ml3-brand-mark rect {
+  fill: #f7f3e8;
+}
+
+.ml3-brand-mark path {
+  stroke: #16392d;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+}
+
+.ml3-brand-mark circle {
+  fill: #19a364;
+}
+
 .ml3-topbar span,
 .ml3-entry-head span {
   color: #68756f;
@@ -6575,6 +6614,17 @@ tbody tr:hover {
 
   .ml3-topbar h1 {
     font-size: 1.12rem;
+  }
+
+  .ml3-brand-mark {
+    width: 36px;
+    height: 36px;
+    border-radius: 11px;
+  }
+
+  .ml3-brand-mark svg {
+    width: 24px;
+    height: 24px;
   }
 
   .ml3-top-actions {

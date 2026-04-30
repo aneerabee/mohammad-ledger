@@ -601,6 +601,19 @@ export default function MohammadLedgerApp() {
   const [selectedAccountId, setSelectedAccountId] = useState('')
   const [feedback, setFeedback] = useState('')
 
+  useEffect(() => {
+    if (typeof document === 'undefined') return undefined
+    const previousTitle = document.title
+    const favicon = document.querySelector("link[rel='icon']")
+    const previousIcon = favicon?.getAttribute('href')
+    document.title = 'دفتر محمد'
+    favicon?.setAttribute('href', `${import.meta.env.BASE_URL}mohammad-ledger.svg`)
+    return () => {
+      document.title = previousTitle
+      if (previousIcon) favicon?.setAttribute('href', previousIcon)
+    }
+  }, [])
+
   const activeAccounts = useMemo(() => getActivePostingAccounts(accounts), [accounts])
   const balances = useMemo(() => summarizeBalances(accounts, movements), [accounts, movements])
   const balancesByKind = useMemo(() => {
@@ -1062,9 +1075,18 @@ export default function MohammadLedgerApp() {
     <main className="ml3-app" dir="rtl">
       <section className="ml3-shell">
         <header className="ml3-topbar">
-          <div>
+          <div className="ml3-brand">
+            <span className="ml3-brand-mark" aria-hidden="true">
+              <svg viewBox="0 0 32 32">
+                <rect x="7" y="5" width="18" height="22" rx="4" />
+                <path d="M12 12h8M12 16h8M12 20h5" />
+                <circle cx="23" cy="23" r="5" />
+              </svg>
+            </span>
+            <div>
             <span>دفتر محمد</span>
             <h1>الأرصدة الآن</h1>
+            </div>
           </div>
           <div className="ml3-top-actions">
             <b>{activeAccounts.length} حساب</b>
