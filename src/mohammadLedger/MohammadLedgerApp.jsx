@@ -36,11 +36,88 @@ const movementLabels = {
 
 const sectionTabs = [
   { key: 'entry', label: 'إدخال' },
-  { key: 'overview', label: 'ملخص' },
   { key: 'accounts', label: 'الأرصدة' },
   { key: 'review', label: 'مراجعة' },
   { key: 'history', label: 'السجل' },
 ]
+
+const movementTypeOptions = [
+  {
+    type: MOVEMENT_TYPES.TRANSFER,
+    label: 'تحويل',
+    detail: 'من حساب إلى حساب',
+    tone: 'transfer',
+  },
+  {
+    type: MOVEMENT_TYPES.EXPENSE,
+    label: 'صرف',
+    detail: 'يخصم من مكان واحد',
+    tone: 'expense',
+  },
+  {
+    type: MOVEMENT_TYPES.USD_SALE,
+    label: 'بعت دولار',
+    detail: 'دولار يخرج ودينار يدخل',
+    tone: 'sale',
+  },
+  {
+    type: MOVEMENT_TYPES.USD_PURCHASE,
+    label: 'اشتريت دولار',
+    detail: 'دينار يخرج ودولار يدخل',
+    tone: 'purchase',
+  },
+]
+
+const movementConfigs = {
+  [MOVEMENT_TYPES.TRANSFER]: {
+    amountLabel: 'المبلغ',
+    currencyLocked: false,
+    needsDestination: true,
+    needsRate: false,
+    sourceLabel: 'من',
+    destinationLabel: 'إلى',
+    routeTitle: 'الأطراف',
+  },
+  [MOVEMENT_TYPES.EXPENSE]: {
+    amountLabel: 'كم صرفت؟',
+    currencyLocked: false,
+    needsDestination: false,
+    needsRate: false,
+    sourceLabel: 'يخصم من',
+    routeTitle: 'مكان الخصم',
+  },
+  [MOVEMENT_TYPES.USD_SALE]: {
+    amountLabel: 'كم دولار بعت؟',
+    currency: CURRENCIES.USD,
+    currencyText: 'دولار',
+    currencyLocked: true,
+    needsDestination: true,
+    needsRate: true,
+    rateLabel: 'سعر بيع الدولار',
+    sourceLabel: 'الدولار يخرج من',
+    destinationLabel: 'الدينار يدخل إلى',
+    routeTitle: 'اتجاه البيع',
+  },
+  [MOVEMENT_TYPES.USD_PURCHASE]: {
+    amountLabel: 'كم دينار دفعت؟',
+    currency: CURRENCIES.DINAR,
+    currencyText: 'دينار',
+    currencyLocked: true,
+    needsDestination: true,
+    needsRate: true,
+    rateLabel: 'سعر شراء الدولار',
+    sourceLabel: 'الدينار يخرج من',
+    destinationLabel: 'الدولار يدخل إلى',
+    routeTitle: 'اتجاه الشراء',
+  },
+}
+
+const movementDefaultAccounts = {
+  [MOVEMENT_TYPES.TRANSFER]: { sourceAccountId: 'me-cash', destinationAccountId: 'saeed-cash' },
+  [MOVEMENT_TYPES.EXPENSE]: { sourceAccountId: 'me-cash', destinationAccountId: '' },
+  [MOVEMENT_TYPES.USD_SALE]: { sourceAccountId: 'me-cash', destinationAccountId: 'me-jumhouria' },
+  [MOVEMENT_TYPES.USD_PURCHASE]: { sourceAccountId: 'me-jumhouria', destinationAccountId: 'me-cash' },
+}
 
 const accountPresets = [
   {
@@ -165,12 +242,14 @@ function signedMoney(value, currency = CURRENCIES.DINAR) {
 }
 
 function emptyMovementDraft(type = MOVEMENT_TYPES.TRANSFER) {
+  const config = movementConfigs[type] || movementConfigs[MOVEMENT_TYPES.TRANSFER]
+  const defaults = movementDefaultAccounts[type] || movementDefaultAccounts[MOVEMENT_TYPES.TRANSFER]
   return {
     type,
     amount: '',
-    currency: type === MOVEMENT_TYPES.USD_SALE || type === MOVEMENT_TYPES.USD_PURCHASE ? CURRENCIES.USD : CURRENCIES.DINAR,
-    sourceAccountId: 'me-cash',
-    destinationAccountId: 'saeed-cash',
+    currency: config.currency || CURRENCIES.DINAR,
+    sourceAccountId: defaults.sourceAccountId,
+    destinationAccountId: config.needsDestination ? defaults.destinationAccountId : '',
     rate: '',
     note: '',
   }
@@ -682,6 +761,7 @@ export default function MohammadLedgerApp() {
 
   const activeAccounts = useMemo(() => getActivePostingAccounts(accounts), [accounts])
   const balances = useMemo(() => summarizeBalances(accounts, movements), [accounts, movements])
+  const balanceByAccountId = useMemo(() => new Map(balances.map((bucket) => [bucket.account.id, bucket])), [balances])
   const balancesByKind = useMemo(() => {
     const groups = {
       people: [],
@@ -732,9 +812,12 @@ export default function MohammadLedgerApp() {
     )
   }, [balances])
 
+  const movementConfig = movementConfigs[movementDraft.type] || movementConfigs[MOVEMENT_TYPES.TRANSFER]
   const normalizedDraft = {
     ...movementDraft,
     amount: Number(movementDraft.amount),
+    currency: movementConfig.currency || movementDraft.currency,
+    destinationAccountId: movementConfig.needsDestination ? movementDraft.destinationAccountId : null,
     rate: movementDraft.rate === '' ? undefined : Number(movementDraft.rate),
   }
   const preview = previewMovement(normalizedDraft, accounts, movements)
@@ -758,19 +841,42 @@ export default function MohammadLedgerApp() {
   }
 
   function chooseMovementType(type) {
+    const config = movementConfigs[type] || movementConfigs[MOVEMENT_TYPES.TRANSFER]
+    const defaults = movementDefaultAccounts[type] || movementDefaultAccounts[MOVEMENT_TYPES.TRANSFER]
     setMovementDraft((current) => ({
       ...current,
       type,
-      currency: type === MOVEMENT_TYPES.USD_SALE || type === MOVEMENT_TYPES.USD_PURCHASE ? CURRENCIES.USD : current.currency,
+      currency: config.currency || current.currency,
+      sourceAccountId: defaults.sourceAccountId,
+      destinationAccountId: config.needsDestination ? defaults.destinationAccountId : '',
+      rate: config.needsRate ? current.rate : '',
     }))
   }
 
   function swapMovementSides() {
+    if (!movementConfig.needsDestination) return
     setMovementDraft((current) => ({
       ...current,
       sourceAccountId: current.destinationAccountId || '',
       destinationAccountId: current.sourceAccountId || '',
     }))
+  }
+
+  function movementAccountsFor(role) {
+    const isPostingAccount = (account) =>
+      account.valueKind !== VALUE_KINDS.EXPENSE &&
+      account.valueKind !== VALUE_KINDS.ASSET &&
+      account.status === ACCOUNT_STATUSES.ACTIVE
+    const moneyOrPerson = activeAccounts.filter(isPostingAccount)
+    const accountsWithUsd = moneyOrPerson.filter((account) => Math.abs(balanceByAccountId.get(account.id)?.usd || 0) > 0.000001)
+
+    if (movementDraft.type === MOVEMENT_TYPES.USD_SALE && role === 'source') {
+      return accountsWithUsd.length ? accountsWithUsd : moneyOrPerson
+    }
+    if (movementDraft.type === MOVEMENT_TYPES.USD_PURCHASE && role === 'destination') {
+      return accountsWithUsd.length ? accountsWithUsd : moneyOrPerson
+    }
+    return moneyOrPerson
   }
 
   function chooseAccountPreset(preset) {
@@ -1229,99 +1335,131 @@ export default function MohammadLedgerApp() {
             <form className="ml3-entry-card ml3-entry-card--movement" onSubmit={saveMovement}>
               <div className="ml3-entry-head">
                 <div>
-                  <span>إضافة حركة</span>
+                  <span>خطوات سريعة</span>
                   <h2>{movementLabels[movementDraft.type]}</h2>
                 </div>
                 <b>{preview.validation.ok ? 'جاهزة' : 'ناقصة'}</b>
               </div>
 
-              <div className="ml3-quick-actions">
-                {[MOVEMENT_TYPES.TRANSFER, MOVEMENT_TYPES.EXPENSE, MOVEMENT_TYPES.USD_SALE, MOVEMENT_TYPES.USD_PURCHASE].map(
-                  (type) => (
+              <section className="ml3-step">
+                <div className="ml3-step-head">
+                  <span>1</span>
+                  <strong>نوع الحركة</strong>
+                </div>
+                <div className="ml3-quick-actions">
+                  {movementTypeOptions.map((option) => (
                     <button
                       type="button"
-                      className={movementDraft.type === type ? 'is-active' : ''}
-                      key={type}
-                      onClick={() => chooseMovementType(type)}
+                      className={`ml3-action-choice ml3-action-choice--${option.tone} ${movementDraft.type === option.type ? 'is-active' : ''}`}
+                      key={option.type}
+                      onClick={() => chooseMovementType(option.type)}
                     >
-                      {movementLabels[type]}
+                      <strong>{option.label}</strong>
+                      <span>{option.detail}</span>
                     </button>
-                  ),
-                )}
-              </div>
+                  ))}
+                </div>
+              </section>
 
-              <div className="ml3-field-pair">
+              <section className="ml3-step">
+                <div className="ml3-step-head">
+                  <span>2</span>
+                  <strong>المبلغ</strong>
+                </div>
+                <div className={`ml3-field-pair ${movementConfig.needsRate ? 'has-rate' : ''}`}>
+                  <label>
+                    {movementConfig.amountLabel}
+                    <input
+                      inputMode="decimal"
+                      value={movementDraft.amount}
+                      onChange={(event) => updateMovementDraft('amount', event.target.value)}
+                      placeholder="0"
+                    />
+                  </label>
+                  {movementConfig.currencyLocked ? (
+                    <div className="ml3-currency-lock">
+                      <span>العملة</span>
+                      <strong>{movementConfig.currencyText}</strong>
+                    </div>
+                  ) : (
+                    <label>
+                      العملة
+                      <select value={movementDraft.currency} onChange={(event) => updateMovementDraft('currency', event.target.value)}>
+                        <option value={CURRENCIES.DINAR}>دينار</option>
+                        <option value={CURRENCIES.USD}>دولار</option>
+                      </select>
+                    </label>
+                  )}
+                  {movementConfig.needsRate ? (
+                    <label>
+                      {movementConfig.rateLabel}
+                      <input
+                        inputMode="decimal"
+                        value={movementDraft.rate}
+                        onChange={(event) => updateMovementDraft('rate', event.target.value)}
+                        placeholder="7.5"
+                      />
+                    </label>
+                  ) : null}
+                </div>
+              </section>
+
+              <section className="ml3-step">
+                <div className="ml3-step-head">
+                  <span>3</span>
+                  <strong>{movementConfig.routeTitle}</strong>
+                </div>
+                <div className={`ml3-route-picker ${movementConfig.needsDestination ? '' : 'is-single'}`}>
+                  <AccountSearchSelect
+                    label={movementConfig.sourceLabel}
+                    value={movementDraft.sourceAccountId || ''}
+                    accounts={movementAccountsFor('source')}
+                    onChange={(value) => updateMovementDraft('sourceAccountId', value)}
+                  />
+                  {movementConfig.needsDestination ? (
+                    <>
+                      <button type="button" className="ml3-swap" onClick={swapMovementSides}>تبديل</button>
+                      <AccountSearchSelect
+                        label={movementConfig.destinationLabel}
+                        value={movementDraft.destinationAccountId || ''}
+                        accounts={movementAccountsFor('destination')}
+                        onChange={(value) => updateMovementDraft('destinationAccountId', value)}
+                      />
+                    </>
+                  ) : null}
+                </div>
                 <label>
-                  المبلغ
-                  <input
-                    inputMode="decimal"
-                    value={movementDraft.amount}
-                    onChange={(event) => updateMovementDraft('amount', event.target.value)}
-                    placeholder="0"
+                  ملاحظة
+                  <textarea
+                    value={movementDraft.note}
+                    onChange={(event) => updateMovementDraft('note', event.target.value)}
+                    placeholder="اختياري"
                   />
                 </label>
-                <label>
-                  العملة
-                  <select value={movementDraft.currency} onChange={(event) => updateMovementDraft('currency', event.target.value)}>
-                    <option value={CURRENCIES.DINAR}>دينار</option>
-                    <option value={CURRENCIES.USD}>دولار</option>
-                  </select>
-                </label>
-              </div>
+              </section>
 
-              {(movementDraft.type === MOVEMENT_TYPES.USD_SALE || movementDraft.type === MOVEMENT_TYPES.USD_PURCHASE) ? (
-                <label>
-                  سعر الصرف
-                  <input
-                    inputMode="decimal"
-                    value={movementDraft.rate}
-                    onChange={(event) => updateMovementDraft('rate', event.target.value)}
-                    placeholder="7.5"
-                  />
-                </label>
-              ) : null}
-
-              <div className="ml3-route-picker">
-                <AccountSearchSelect
-                  label="من"
-                  value={movementDraft.sourceAccountId || ''}
-                  accounts={activeAccounts}
-                  onChange={(value) => updateMovementDraft('sourceAccountId', value)}
-                />
-                <button type="button" className="ml3-swap" onClick={swapMovementSides}>تبديل</button>
-                <AccountSearchSelect
-                  label="إلى"
-                  value={movementDraft.destinationAccountId || ''}
-                  accounts={activeAccounts}
-                  onChange={(value) => updateMovementDraft('destinationAccountId', value)}
-                />
-              </div>
-              <label>
-                ملاحظة
-                <textarea
-                  value={movementDraft.note}
-                  onChange={(event) => updateMovementDraft('note', event.target.value)}
-                  placeholder="اختياري"
-                />
-              </label>
-
-              <div className={`ml3-preview ${preview.validation.ok ? 'is-ok' : 'is-review'}`}>
-                <strong>{preview.validation.ok ? 'تأثير الحركة' : 'لا تعتمد بعد'}</strong>
-                {preview.validation.errors.map((error) => (
-                  <span key={`${error.field}-${error.message}`}>{error.message}</span>
-                ))}
-                {preview.effects.map((effect) => (
-                  <div className="ml3-effect" key={`${effect.accountId}-${effect.currency}`}>
-                    <span>{accountLabel(effect.account)}</span>
-                    <b>{money(effect.before, effect.currency)}</b>
-                    <i>{signedMoney(effect.delta, effect.currency)}</i>
-                    <strong>{money(effect.after, effect.currency)}</strong>
-                  </div>
-                ))}
-              </div>
-              <button className="ml3-save" type="submit">
-                {preview.validation.ok ? 'تأكيد وحفظ الحركة' : 'حفظ كحركة معلقة'}
-              </button>
+              <section className="ml3-step ml3-step--final">
+                <div className="ml3-step-head">
+                  <span>4</span>
+                  <strong>{preview.validation.ok ? 'راجع التأثير' : 'أكمل الناقص'}</strong>
+                </div>
+                <div className={`ml3-preview ${preview.validation.ok ? 'is-ok' : 'is-review'}`}>
+                  {preview.validation.errors.map((error) => (
+                    <span key={`${error.field}-${error.message}`}>{error.message}</span>
+                  ))}
+                  {preview.effects.map((effect) => (
+                    <div className="ml3-effect" key={`${effect.accountId}-${effect.currency}`}>
+                      <span>{accountLabel(effect.account)}</span>
+                      <b>{money(effect.before, effect.currency)}</b>
+                      <i>{signedMoney(effect.delta, effect.currency)}</i>
+                      <strong>{money(effect.after, effect.currency)}</strong>
+                    </div>
+                  ))}
+                </div>
+                <button className="ml3-save" type="submit">
+                  {preview.validation.ok ? 'تأكيد وحفظ الحركة' : 'حفظ كحركة ناقصة'}
+                </button>
+              </section>
             </form>
             ) : null}
 

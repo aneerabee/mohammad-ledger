@@ -48,6 +48,26 @@ describe('mohammad ledger core', () => {
     ])
   })
 
+  it('treats expense as one-sided money leaving the selected account', () => {
+    const openings = createOpeningMovements(mohammadAccountCatalog)
+    const preview = previewMovement(
+      {
+        type: MOVEMENT_TYPES.EXPENSE,
+        amount: 100,
+        currency: CURRENCIES.DINAR,
+        sourceAccountId: 'me-cash',
+        destinationAccountId: null,
+      },
+      mohammadAccountCatalog,
+      openings,
+    )
+
+    expect(preview.validation.ok).toBe(true)
+    expect(preview.effects).toEqual([
+      expect.objectContaining({ accountId: 'me-cash', before: 47164.675, delta: -100, after: 47064.675 }),
+    ])
+  })
+
   it('keeps incomplete movements out of posted balances', () => {
     const openings = createOpeningMovements(mohammadAccountCatalog)
     const badMovement = postMovement(
@@ -123,6 +143,42 @@ describe('mohammad ledger core', () => {
       expect.objectContaining({ accountId: 'me-cash', currency: CURRENCIES.USD, delta: -100 }),
       expect.objectContaining({ accountId: 'me-jumhouria', currency: CURRENCIES.DINAR, delta: 750 }),
     ])
+
+    const purchasePreview = previewMovement(
+      {
+        type: MOVEMENT_TYPES.USD_PURCHASE,
+        amount: 750,
+        currency: CURRENCIES.DINAR,
+        rate: 7.5,
+        sourceAccountId: 'me-jumhouria',
+        destinationAccountId: 'me-cash',
+      },
+      mohammadAccountCatalog,
+      createOpeningMovements(mohammadAccountCatalog),
+    )
+
+    expect(purchasePreview.validation.ok).toBe(true)
+    expect(purchasePreview.effects).toEqual([
+      expect.objectContaining({ accountId: 'me-jumhouria', currency: CURRENCIES.DINAR, delta: -750 }),
+      expect.objectContaining({ accountId: 'me-cash', currency: CURRENCIES.USD, delta: 100 }),
+    ])
+  })
+
+  it('does not allow usd sale or purchase without a valid exchange rate', () => {
+    const preview = previewMovement(
+      {
+        type: MOVEMENT_TYPES.USD_SALE,
+        amount: 100,
+        currency: CURRENCIES.USD,
+        sourceAccountId: 'me-cash',
+        destinationAccountId: 'me-jumhouria',
+      },
+      mohammadAccountCatalog,
+      createOpeningMovements(mohammadAccountCatalog),
+    )
+
+    expect(preview.validation.ok).toBe(false)
+    expect(preview.validation.errors.some((error) => error.field === 'rate')).toBe(true)
   })
 
   it('labels balance direction based on account kind', () => {

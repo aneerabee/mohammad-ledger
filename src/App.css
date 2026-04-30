@@ -5596,6 +5596,46 @@ tbody tr:hover {
   gap: 5px;
 }
 
+.ml3-step {
+  display: grid;
+  gap: 5px;
+  border-radius: 12px;
+  padding: 6px;
+  background: #f8faf7;
+  border: 1px solid #e1e9df;
+  animation: ml3-rise 0.22s ease both;
+}
+
+.ml3-step--final {
+  background: #f4f8f3;
+}
+
+.ml3-step-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  color: #25352d;
+}
+
+.ml3-step-head span {
+  display: inline-grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  background: #25352d;
+  color: #ffffff;
+  font-size: 0.68rem;
+  font-weight: 950;
+  flex: 0 0 auto;
+}
+
+.ml3-step-head strong {
+  font-size: 0.78rem;
+  line-height: 1.1;
+}
+
 .ml3-entry-head b {
   border-radius: 999px;
   padding: 5px 8px;
@@ -5649,6 +5689,32 @@ tbody tr:hover {
   color: #39473f;
 }
 
+.ml3-action-choice {
+  display: grid;
+  gap: 2px;
+  text-align: inherit;
+  align-content: center;
+}
+
+.ml3-action-choice strong,
+.ml3-action-choice span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ml3-action-choice span {
+  font-size: 0.64rem;
+  font-weight: 850;
+  opacity: 0.74;
+}
+
+.ml3-action-choice--transfer.is-active { background: #25352d; }
+.ml3-action-choice--expense.is-active { background: #8a3c2d; }
+.ml3-action-choice--sale.is-active { background: #197451; }
+.ml3-action-choice--purchase.is-active { background: #75512a; }
+
 .ml3-quick-actions button.is-active,
 .ml3-save,
 .ml3-add-account button {
@@ -5660,6 +5726,32 @@ tbody tr:hover {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 6px;
+}
+
+.ml3-field-pair.has-rate {
+  grid-template-columns: minmax(0, 1.1fr) minmax(92px, 0.7fr) minmax(0, 1fr);
+}
+
+.ml3-currency-lock {
+  display: grid;
+  gap: 4px;
+  border-radius: 10px;
+  background: #25352d;
+  color: #ffffff;
+  padding: 5px 8px;
+  min-height: 30px;
+  align-content: center;
+}
+
+.ml3-currency-lock span {
+  font-size: 0.68rem;
+  font-weight: 850;
+  opacity: 0.78;
+}
+
+.ml3-currency-lock strong {
+  font-size: 0.82rem;
+  line-height: 1;
 }
 
 .ml3-entry-card label,
@@ -5676,6 +5768,10 @@ tbody tr:hover {
   grid-template-columns: minmax(0, 1fr) 42px minmax(0, 1fr);
   gap: 5px;
   align-items: end;
+}
+
+.ml3-route-picker.is-single {
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .ml3-account-picker {
@@ -6837,18 +6933,18 @@ tbody tr:hover {
   }
 
   .ml3-topbar {
-    padding-bottom: 5px;
+    padding-bottom: 3px;
   }
 
   .ml3-brand-mark {
-    width: 36px;
-    height: 36px;
-    border-radius: 11px;
+    width: 32px;
+    height: 32px;
+    border-radius: 10px;
   }
 
   .ml3-brand-mark svg {
-    width: 24px;
-    height: 24px;
+    width: 22px;
+    height: 22px;
   }
 
   .ml3-top-actions {
@@ -6864,14 +6960,88 @@ tbody tr:hover {
     top: 0;
     z-index: 15;
     display: grid;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 
   .ml3-tabs button {
     width: auto;
     min-width: 0 !important;
-    padding: 5px 6px;
+    padding: 4px 6px;
     font-size: 0.76rem;
+  }
+
+  .ml3-entry {
+    gap: 4px;
+  }
+
+  .ml3-entry-mode {
+    padding: 3px;
+  }
+
+  .ml3-entry-mode button {
+    min-height: 26px;
+  }
+
+  .ml3-entry-card,
+  .ml3-add-account,
+  .ml3-panel {
+    padding: 5px;
+  }
+
+  .ml3-entry-card {
+    gap: 4px;
+  }
+
+  .ml3-step {
+    gap: 3px;
+    padding: 4px;
+    border-radius: 10px;
+  }
+
+  .ml3-step-head span {
+    width: 17px;
+    height: 17px;
+    font-size: 0.62rem;
+  }
+
+  .ml3-step-head strong {
+    font-size: 0.72rem;
+  }
+
+  .ml3-entry-card label,
+  .ml3-add-account label {
+    gap: 3px;
+  }
+
+  .ml3-entry-card input,
+  .ml3-entry-card select,
+  .ml3-entry-card textarea,
+  .ml3-add-account input,
+  .ml3-add-account select {
+    min-height: 27px;
+    padding: 4px 7px;
+    border-radius: 9px;
+  }
+
+  .ml3-entry-card textarea {
+    min-height: 27px;
+  }
+
+  .ml3-account-picker {
+    gap: 3px;
+    padding: 4px;
+  }
+
+  .ml3-account-picker input {
+    min-height: 26px;
+  }
+
+  .ml3-picked-account {
+    padding: 3px 6px;
+  }
+
+  .ml3-preview {
+    max-height: 88px;
   }
 
   .ml3-account-meta {
@@ -6912,6 +7082,14 @@ tbody tr:hover {
   .ml3-quick-actions button {
     font-size: 0.7rem;
     padding-inline: 3px;
+  }
+
+  .ml3-action-choice span {
+    display: none;
+  }
+
+  .ml3-field-pair.has-rate {
+    grid-template-columns: 1fr;
   }
 
   .ml3-effect b,

@@ -121,6 +121,9 @@ export function validateMovement(movement, accounts = []) {
   if (TWO_SIDED_TYPES.has(type) && sourceId && destinationId && sourceId === destinationId) {
     errors.push({ field: 'destinationAccountId', message: 'لا يمكن أن يكون المصدر والوجهة نفس الحساب.' })
   }
+  if ((type === MOVEMENT_TYPES.USD_SALE || type === MOVEMENT_TYPES.USD_PURCHASE) && (!Number.isFinite(movement?.rate) || movement.rate <= 0)) {
+    errors.push({ field: 'rate', message: 'سعر الصرف مطلوب ويجب أن يكون أكبر من صفر.' })
+  }
 
   for (const [field, accountId] of [
     ['sourceAccountId', sourceId],
