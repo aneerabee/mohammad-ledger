@@ -33,6 +33,12 @@
   box-sizing: border-box;
 }
 
+html {
+  overflow-x: hidden;
+  touch-action: manipulation;
+  -webkit-text-size-adjust: 100%;
+}
+
 /* ─── Shell ─── */
 .app-shell {
   max-width: 1400px;
@@ -43,6 +49,8 @@
 
 body {
   margin: 0;
+  overflow-x: hidden;
+  touch-action: manipulation;
   background:
     radial-gradient(circle at top right, rgba(82, 135, 173, 0.12), transparent 26%),
     radial-gradient(circle at top left, rgba(17, 122, 101, 0.1), transparent 24%),
@@ -5600,31 +5608,80 @@ tbody tr:hover {
 .ml3-entry-card {
   display: grid;
   gap: 5px;
+  --ml3-flow-tone: #25352d;
+  --ml3-flow-soft: #eef2ed;
+  --ml3-flow-ink: #25352d;
+  border: 2px solid color-mix(in srgb, var(--ml3-flow-tone) 34%, #ffffff);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.65),
+    0 14px 32px rgba(35, 48, 42, 0.08);
+}
+
+.ml3-entry-card--transfer {
+  --ml3-flow-tone: #25352d;
+  --ml3-flow-soft: #eef2ed;
+  --ml3-flow-ink: #25352d;
+}
+
+.ml3-entry-card--expense {
+  --ml3-flow-tone: #b8322b;
+  --ml3-flow-soft: #fff0ec;
+  --ml3-flow-ink: #8a332b;
+}
+
+.ml3-entry-card--sale {
+  --ml3-flow-tone: #158553;
+  --ml3-flow-soft: #effaf3;
+  --ml3-flow-ink: #116b43;
+}
+
+.ml3-entry-card--purchase {
+  --ml3-flow-tone: #9a671f;
+  --ml3-flow-soft: #fff6e7;
+  --ml3-flow-ink: #7b4818;
+}
+
+.ml3-entry-card--movement .ml3-entry-head {
+  border-radius: 10px;
+  padding: 6px 7px;
+  background: var(--ml3-flow-soft);
+  border: 1px solid color-mix(in srgb, var(--ml3-flow-tone) 24%, #ffffff);
 }
 
 .ml3-step {
   display: grid;
-  gap: 5px;
+  gap: 7px;
   border-radius: 12px;
-  padding: 6px;
-  background: #f8faf7;
-  border: 1px solid #e1e9df;
+  padding: 8px;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--ml3-flow-tone) 8%, #ffffff), #ffffff 55%);
+  border: 1px solid color-mix(in srgb, var(--ml3-flow-tone) 20%, #ffffff);
   animation: ml3-rise 0.22s ease both;
   position: relative;
+  overflow: hidden;
+}
+
+.ml3-step::before {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  width: 5px;
+  background: var(--ml3-flow-tone);
 }
 
 .ml3-step--final {
-  background: #f4f8f3;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--ml3-flow-tone) 14%, #ffffff), #ffffff 60%);
 }
 
 .ml3-step:not(:last-child)::after {
   content: "";
   position: absolute;
-  inset-inline-start: 16px;
-  bottom: -8px;
-  width: 2px;
-  height: 8px;
-  background: #cbd8ca;
+  inset-inline-start: 18px;
+  bottom: -10px;
+  width: 3px;
+  height: 10px;
+  background: color-mix(in srgb, var(--ml3-flow-tone) 52%, #cbd8ca);
+  border-radius: 999px;
 }
 
 .ml3-step-head {
@@ -5641,7 +5698,7 @@ tbody tr:hover {
   width: 20px;
   height: 20px;
   border-radius: 999px;
-  background: #25352d;
+  background: var(--ml3-flow-tone);
   color: #ffffff;
   font-size: 0.68rem;
   font-weight: 950;
@@ -5657,8 +5714,8 @@ tbody tr:hover {
   margin-inline-start: auto;
   border: 0;
   border-radius: 999px;
-  background: #e9eee8;
-  color: #39473f;
+  background: color-mix(in srgb, var(--ml3-flow-tone) 12%, #ffffff);
+  color: var(--ml3-flow-ink);
   padding: 3px 8px;
   font: inherit;
   font-size: 0.68rem;
@@ -5669,7 +5726,8 @@ tbody tr:hover {
 .ml3-step.is-done {
   grid-template-columns: 1fr;
   background: #ffffff;
-  border-color: #dce6da;
+  border-color: color-mix(in srgb, var(--ml3-flow-tone) 18%, #ffffff);
+  opacity: 0.92;
 }
 
 .ml3-step.is-done .ml3-step-head span {
@@ -5680,8 +5738,8 @@ tbody tr:hover {
   display: block;
   min-width: 0;
   border-radius: 9px;
-  background: #f0f5ef;
-  color: #25352d;
+  background: color-mix(in srgb, var(--ml3-flow-tone) 10%, #ffffff);
+  color: var(--ml3-flow-ink);
   padding: 5px 8px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -5767,6 +5825,11 @@ tbody tr:hover {
 .ml3-action-choice--expense.is-active { background: #8a3c2d; }
 .ml3-action-choice--sale.is-active { background: #197451; }
 .ml3-action-choice--purchase.is-active { background: #75512a; }
+
+.ml3-action-choice--transfer { border-bottom: 3px solid #25352d !important; }
+.ml3-action-choice--expense { border-bottom: 3px solid #b8322b !important; }
+.ml3-action-choice--sale { border-bottom: 3px solid #158553 !important; }
+.ml3-action-choice--purchase { border-bottom: 3px solid #9a671f !important; }
 
 .ml3-quick-actions button.is-active,
 .ml3-save,
@@ -5948,7 +6011,7 @@ tbody tr:hover {
   border: 0;
   border-radius: 10px;
   min-height: 30px;
-  background: #25352d;
+  background: var(--ml3-flow-tone);
   color: #ffffff;
   font: inherit;
   font-size: 0.8rem;
@@ -5974,6 +6037,7 @@ tbody tr:hover {
   background: #fbfdf9;
   padding: 5px 8px;
   font: inherit;
+  font-size: 16px;
   font-weight: 760;
   color: #17211c;
 }
@@ -5995,6 +6059,10 @@ tbody tr:hover {
 
 .ml3-preview.is-ok { background: #ecf6ee; }
 .ml3-preview.is-review { background: #fff1d8; }
+
+.ml3-entry-card--expense .ml3-preview.is-ok { background: #fff0ec; }
+.ml3-entry-card--sale .ml3-preview.is-ok { background: #effaf3; }
+.ml3-entry-card--purchase .ml3-preview.is-ok { background: #fff6e7; }
 
 .ml3-preview > span {
   color: #85501d;
@@ -7267,6 +7335,7 @@ tbody tr:hover {
     min-height: 27px;
     padding: 4px 7px;
     border-radius: 9px;
+    font-size: 16px;
   }
 
   .ml3-entry-card textarea {

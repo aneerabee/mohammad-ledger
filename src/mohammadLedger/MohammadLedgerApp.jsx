@@ -1443,7 +1443,7 @@ export default function MohammadLedgerApp() {
               </button>
             </div>
             {activeEntryMode === 'movement' ? (
-            <form className="ml3-entry-card ml3-entry-card--movement" onSubmit={saveMovement}>
+            <form className={`ml3-entry-card ml3-entry-card--movement ml3-entry-card--${movementTone(movementDraft.type)}`} onSubmit={saveMovement}>
               <div className="ml3-entry-head">
                 <div>
                   <h2>{movementLabels[movementDraft.type]}</h2>
