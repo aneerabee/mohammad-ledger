@@ -25,8 +25,8 @@ const STORAGE_KEY = 'mohammad-ledger-v1'
 
 const movementLabels = {
   [MOVEMENT_TYPES.TRANSFER]: 'تحويل',
-  [MOVEMENT_TYPES.EXPENSE]: 'صرف',
-  [MOVEMENT_TYPES.TRUCK_EXPENSE]: 'صرف شاحنة',
+  [MOVEMENT_TYPES.EXPENSE]: 'مصروف',
+  [MOVEMENT_TYPES.TRUCK_EXPENSE]: 'مصروف شاحنة',
   [MOVEMENT_TYPES.TRUCK_INCOME]: 'دخل شاحنة',
   [MOVEMENT_TYPES.USD_SALE]: 'بعت دولار',
   [MOVEMENT_TYPES.USD_PURCHASE]: 'اشتريت دولار',
@@ -50,7 +50,7 @@ const movementTypeOptions = [
   },
   {
     type: MOVEMENT_TYPES.EXPENSE,
-    label: 'صرف',
+    label: 'مصروف',
     detail: 'يخصم من مكان واحد',
     tone: 'expense',
   },
@@ -79,12 +79,12 @@ const movementConfigs = {
     routeTitle: 'الأطراف',
   },
   [MOVEMENT_TYPES.EXPENSE]: {
-    amountLabel: 'كم صرفت؟',
+    amountLabel: 'المبلغ',
     currencyLocked: false,
     needsDestination: false,
     needsRate: false,
     sourceLabel: 'يخصم من',
-    routeTitle: 'مكان الخصم',
+    routeTitle: 'الحساب',
   },
   [MOVEMENT_TYPES.USD_SALE]: {
     amountLabel: 'كم دولار بعت؟',
@@ -155,7 +155,7 @@ const accountPresets = [
   {
     key: 'expense',
     title: 'مصروف',
-    detail: 'صرف نهائي',
+    detail: 'خرج نهائيًا',
     type: ACCOUNT_TYPES.EXPENSE,
     valueKind: VALUE_KINDS.EXPENSE,
     subAccountName: 'مصروف',
@@ -175,14 +175,14 @@ const accountGroupTabs = [
   { key: 'people', label: 'الناس', title: 'الناس', subtitle: 'كل الأشخاص والجهات، حتى الحسابات المسكرة تظهر هنا للتأكد.' },
   { key: 'money', label: 'مالي', title: 'أماكن مالي', subtitle: 'الكاش والمصرفي الخاص بي فقط.' },
   { key: 'assets', label: 'أشياء', title: 'أشياء لها قيمة', subtitle: 'أصول وممتلكات.' },
-  { key: 'expenses', label: 'صرف', title: 'الصرف', subtitle: 'فلوس خرجت نهائيًا.' },
+  { key: 'expenses', label: 'مصروف', title: 'المصروف', subtitle: 'فلوس خرجت نهائيًا.' },
 ]
 
 const accountTypeLabels = {
   [ACCOUNT_TYPES.PERSON]: 'شخص/جهة',
   [ACCOUNT_TYPES.CASH]: 'كاش',
   [ACCOUNT_TYPES.BANK]: 'مصرفي',
-  [ACCOUNT_TYPES.EXPENSE]: 'صرف',
+  [ACCOUNT_TYPES.EXPENSE]: 'مصروف',
   [ACCOUNT_TYPES.ASSET]: 'شيء',
   [ACCOUNT_TYPES.PROJECT]: 'مشروع',
   [ACCOUNT_TYPES.REVIEW]: 'يحتاج حل',
@@ -192,7 +192,7 @@ const valueKindLabels = {
   [VALUE_KINDS.RECEIVABLE]: 'حساب شخص',
   [VALUE_KINDS.CASH]: 'كاش عندي',
   [VALUE_KINDS.BANK]: 'مصرفي عندي',
-  [VALUE_KINDS.EXPENSE]: 'صرف نهائي',
+  [VALUE_KINDS.EXPENSE]: 'مصروف نهائي',
   [VALUE_KINDS.ASSET]: 'شيء له قيمة',
   [VALUE_KINDS.REVIEW]: 'يحتاج حل',
 }
@@ -267,6 +267,34 @@ function emptyAccountDraft() {
 
 function accountLabel(account) {
   return account ? `${account.ownerName} / ${account.subAccountName}` : ''
+}
+
+function movementStatusLabel(status) {
+  if (status === MOVEMENT_STATUSES.POSTED) return 'تم'
+  if (status === MOVEMENT_STATUSES.NEEDS_REVIEW) return 'ناقص'
+  if (status === MOVEMENT_STATUSES.VOIDED) return 'ملغي'
+  return 'مسودة'
+}
+
+function movementTone(type) {
+  if (type === MOVEMENT_TYPES.EXPENSE || type === MOVEMENT_TYPES.TRUCK_EXPENSE) return 'expense'
+  if (type === MOVEMENT_TYPES.USD_SALE) return 'sale'
+  if (type === MOVEMENT_TYPES.USD_PURCHASE) return 'purchase'
+  if (type === MOVEMENT_TYPES.TRANSFER) return 'transfer'
+  return 'neutral'
+}
+
+function movementTime(value) {
+  const date = new Date(value || Date.now())
+  if (Number.isNaN(date.getTime())) return ''
+  return date.toLocaleTimeString('ar-LY', { hour: '2-digit', minute: '2-digit' })
+}
+
+function isToday(value) {
+  const date = new Date(value || '')
+  if (Number.isNaN(date.getTime())) return false
+  const today = new Date()
+  return date.getFullYear() === today.getFullYear() && date.getMonth() === today.getMonth() && date.getDate() === today.getDate()
 }
 
 function classificationValue(account) {
@@ -423,6 +451,41 @@ function AccountSearchSelect({ label, value, accounts, onChange, allowEmpty = tr
         {normalizedQuery && resultAccounts.length === 0 ? <p>لا توجد نتيجة</p> : null}
       </div>
     </div>
+  )
+}
+
+function MovementMiniRow({ movement, accountById, onCancel }) {
+  const source = accountById.get(movement.sourceAccountId)
+  const destination = accountById.get(movement.destinationAccountId)
+  const effects = movement.status === MOVEMENT_STATUSES.POSTED ? buildPostingEntries(movement) : []
+
+  return (
+    <article className={`ml3-today-row ml3-today-row--${movementTone(movement.type)} ${movement.status === MOVEMENT_STATUSES.VOIDED ? 'is-muted' : ''}`}>
+      <div className="ml3-today-main">
+        <strong>{movementLabels[movement.type] || movement.type}</strong>
+        <span>{movementTime(movement.createdAt)} · {money(movement.amount, movement.currency)} · {movementStatusLabel(movement.status)}</span>
+      </div>
+      <div className="ml3-today-route">
+        {source ? <b>{accountLabel(source)}</b> : null}
+        {destination ? <b>{accountLabel(destination)}</b> : null}
+      </div>
+      {effects.length ? (
+        <div className="ml3-today-effects">
+          {effects.map((effect) => {
+            const account = accountById.get(effect.accountId)
+            return (
+              <span key={`${effect.accountId}-${effect.currency}`}>
+                {account?.ownerName || effect.accountId} {signedMoney(effect.delta, effect.currency)}
+              </span>
+            )
+          })}
+        </div>
+      ) : null}
+      {movement.note ? <small>{movement.note}</small> : null}
+      {movement.status === MOVEMENT_STATUSES.POSTED ? (
+        <button type="button" onClick={() => onCancel(movement.id)}>إلغاء</button>
+      ) : null}
+    </article>
   )
 }
 
@@ -760,6 +823,7 @@ export default function MohammadLedgerApp() {
   }, [])
 
   const activeAccounts = useMemo(() => getActivePostingAccounts(accounts), [accounts])
+  const accountById = useMemo(() => new Map(accounts.map((account) => [account.id, account])), [accounts])
   const balances = useMemo(() => summarizeBalances(accounts, movements), [accounts, movements])
   const balanceByAccountId = useMemo(() => new Map(balances.map((bucket) => [bucket.account.id, bucket])), [balances])
   const balancesByKind = useMemo(() => {
@@ -795,6 +859,7 @@ export default function MohammadLedgerApp() {
       ),
   )
   const postedUserMovements = movements.filter((movement) => !movement.id?.startsWith('opening-')).slice().reverse()
+  const todayMovements = postedUserMovements.filter((movement) => isToday(movement.createdAt || movement.updatedAt))
   const totals = useMemo(() => {
     return balances.reduce(
       (acc, bucket) => {
@@ -1287,7 +1352,7 @@ export default function MohammadLedgerApp() {
               <MetricChip label="أقبض" value={totals.peopleOweMe} tone="positive" />
               <MetricChip label="أدفع" value={totals.iOwePeople} tone="negative" />
               <MetricChip label="أصول" value={totals.assets} tone="asset" />
-              <MetricChip label="صرف" value={totals.expenses} tone="expense" />
+              <MetricChip label="مصروف" value={totals.expenses} tone="expense" />
             </section>
 
             <AlertBoard
@@ -1335,7 +1400,6 @@ export default function MohammadLedgerApp() {
             <form className="ml3-entry-card ml3-entry-card--movement" onSubmit={saveMovement}>
               <div className="ml3-entry-head">
                 <div>
-                  <span>خطوات سريعة</span>
                   <h2>{movementLabels[movementDraft.type]}</h2>
                 </div>
                 <b>{preview.validation.ok ? 'جاهزة' : 'ناقصة'}</b>
@@ -1355,7 +1419,6 @@ export default function MohammadLedgerApp() {
                       onClick={() => chooseMovementType(option.type)}
                     >
                       <strong>{option.label}</strong>
-                      <span>{option.detail}</span>
                     </button>
                   ))}
                 </div>
@@ -1461,6 +1524,26 @@ export default function MohammadLedgerApp() {
                 </button>
               </section>
             </form>
+            ) : null}
+
+            {activeEntryMode === 'movement' ? (
+              <section className="ml3-today-panel">
+                <div className="ml3-today-head">
+                  <h2>اليوم</h2>
+                  <span>{todayMovements.length}</span>
+                </div>
+                <div className="ml3-today-list">
+                  {todayMovements.length === 0 ? <p className="ml3-empty">لا توجد حركات اليوم.</p> : null}
+                  {todayMovements.map((movement) => (
+                    <MovementMiniRow
+                      key={movement.id}
+                      movement={movement}
+                      accountById={accountById}
+                      onCancel={cancelMovement}
+                    />
+                  ))}
+                </div>
+              </section>
             ) : null}
 
             {activeEntryMode === 'account' ? (
