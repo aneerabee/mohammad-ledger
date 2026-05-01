@@ -7839,6 +7839,21 @@ tbody tr:hover {
     grid-template-columns: minmax(0, 1fr);
     padding: 6px 7px;
     padding-inline-start: 12px;
+    overflow: visible;
+  }
+
+  .ml3-today-main strong,
+  .ml3-today-main span,
+  .ml3-today-route b,
+  .ml3-today-effects span,
+  .ml3-history-row span,
+  .ml3-history-row small,
+  .ml3-profile-movement span,
+  .ml3-profile-impact b {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+    overflow-wrap: anywhere;
   }
 
   .ml3-today-route {
@@ -7851,6 +7866,22 @@ tbody tr:hover {
 
   .ml3-today-route b {
     max-width: 100%;
+  }
+
+  .ml3-today-effects {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .ml3-today-effects span {
+    border-radius: 8px;
+    direction: inherit;
+    line-height: 1.25;
+  }
+
+  .ml3-today-row button,
+  .ml3-history-row button {
+    justify-self: start;
   }
 
   .ml3-account-meta {
