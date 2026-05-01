@@ -445,13 +445,17 @@ function AccountList({ title, subtitle, rows, emptyText = 'لا توجد عنا�
   )
 }
 
-function AccountSearchSelect({ label, value, accounts, onChange, allowEmpty = true }) {
+function AccountSearchSelect({ label, value, accounts, onChange, allowEmpty = true, preferredAccountIds = [] }) {
   const [query, setQuery] = useState('')
   const [isChanging, setIsChanging] = useState(false)
   const [quickFilter, setQuickFilter] = useState('')
   const normalizedQuery = query.trim().toLowerCase()
   const selectedAccount = accounts.find((account) => account.id === value)
   const showChooser = !selectedAccount || isChanging
+  const preferredIndexById = new Map(preferredAccountIds.map((accountId, index) => [accountId, index]))
+  const preferredAccounts = preferredAccountIds
+    .map((accountId) => accounts.find((account) => account.id === accountId))
+    .filter(Boolean)
   const quickLetters = Array.from(new Set(accounts.map((account) => account.ownerName?.trim()?.[0]).filter(Boolean))).slice(0, 10)
   const normalizedPreferredOwner = 'أنا'
   const quickFilters = [
@@ -473,6 +477,7 @@ function AccountSearchSelect({ label, value, accounts, onChange, allowEmpty = tr
   const rankAccount = (account) => {
     const ownerName = String(account.ownerName || '').trim()
     const labelText = accountLabel(account).toLowerCase()
+    if (preferredIndexById.has(account.id)) return -50 + preferredIndexById.get(account.id)
     if (account.id === value && ownerName === normalizedPreferredOwner) return -30
     if (ownerName === normalizedPreferredOwner) return -20
     if (account.id === value) return -15
@@ -530,6 +535,21 @@ function AccountSearchSelect({ label, value, accounts, onChange, allowEmpty = tr
               placeholder="اكتب الاسم أو كاش أو مصرف"
             />
           </label>
+          {!normalizedQuery && !quickFilter && preferredAccounts.length ? (
+            <div className="ml3-picker-favorites" aria-label="اختيارات سريعة">
+              {preferredAccounts.map((account) => (
+                <button
+                  type="button"
+                  key={account.id}
+                  className={`ml3-picker-favorite--${visualKind(account)} ${account.id === value ? 'is-selected' : ''}`}
+                  onClick={() => chooseAccount(account.id)}
+                >
+                  <strong>{account.ownerName}</strong>
+                  <span>{account.subAccountName}</span>
+                </button>
+              ))}
+            </div>
+          ) : null}
           <div className="ml3-picker-chips" aria-label="تصفية سريعة">
             {quickFilters.map((filter) => (
               <button
@@ -1107,6 +1127,13 @@ export default function MohammadLedgerApp() {
       return removeLogicalDuplicate(moneyOrPerson, destinationAccount)
     }
     return moneyOrPerson
+  }
+
+  function preferredMovementAccountIds(role) {
+    if (movementDraft.type === MOVEMENT_TYPES.EXPENSE && role === 'source') {
+      return ['me-cash', 'me-jumhouria', 'saeed-cash', 'saeed-bank']
+    }
+    return []
   }
 
   function chooseAccountPreset(preset) {
@@ -1747,6 +1774,7 @@ export default function MohammadLedgerApp() {
                     value={movementDraft.sourceAccountId || ''}
                     accounts={movementAccountsFor('source')}
                     onChange={(value) => updateMovementDraft('sourceAccountId', value)}
+                    preferredAccountIds={preferredMovementAccountIds('source')}
                   />
                 </div>
                 <button type="button" className="ml3-step-next" disabled={!movementDraft.sourceAccountId} onClick={advanceMovementStep}>
