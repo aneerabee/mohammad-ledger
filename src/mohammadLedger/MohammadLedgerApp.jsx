@@ -805,6 +805,7 @@ export default function MohammadLedgerApp() {
   const [activeEntryMode, setActiveEntryMode] = useState('movement')
   const [activeAccountGroup, setActiveAccountGroup] = useState('people')
   const [movementDraft, setMovementDraft] = useState(() => emptyMovementDraft())
+  const [movementRouteReviewed, setMovementRouteReviewed] = useState(false)
   const [accountDraft, setAccountDraft] = useState(emptyAccountDraft)
   const [selectedAccountId, setSelectedAccountId] = useState('')
   const [feedback, setFeedback] = useState('')
@@ -886,6 +887,14 @@ export default function MohammadLedgerApp() {
     rate: movementDraft.rate === '' ? undefined : Number(movementDraft.rate),
   }
   const preview = previewMovement(normalizedDraft, accounts, movements)
+  const hasMovementAmount = Number.isFinite(normalizedDraft.amount) && normalizedDraft.amount > 0
+  const hasMovementRate = !movementConfig.needsRate || (Number.isFinite(normalizedDraft.rate) && normalizedDraft.rate > 0)
+  const canChooseMovementAccounts = hasMovementAmount && hasMovementRate
+  const hasMovementAccounts =
+    Boolean(movementDraft.sourceAccountId) &&
+    (!movementConfig.needsDestination || Boolean(movementDraft.destinationAccountId)) &&
+    (!movementConfig.needsDestination || movementDraft.sourceAccountId !== movementDraft.destinationAccountId)
+  const canReviewMovement = canChooseMovementAccounts && hasMovementAccounts && movementRouteReviewed
   const selectedBucket = balances.find((bucket) => bucket.account.id === selectedAccountId) || null
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -902,12 +911,16 @@ export default function MohammadLedgerApp() {
   }, [selectedAccountId])
 
   function updateMovementDraft(field, value) {
+    if (['amount', 'rate', 'currency', 'sourceAccountId', 'destinationAccountId'].includes(field)) {
+      setMovementRouteReviewed(false)
+    }
     setMovementDraft((current) => ({ ...current, [field]: value }))
   }
 
   function chooseMovementType(type) {
     const config = movementConfigs[type] || movementConfigs[MOVEMENT_TYPES.TRANSFER]
     const defaults = movementDefaultAccounts[type] || movementDefaultAccounts[MOVEMENT_TYPES.TRANSFER]
+    setMovementRouteReviewed(false)
     setMovementDraft((current) => ({
       ...current,
       type,
@@ -920,6 +933,7 @@ export default function MohammadLedgerApp() {
 
   function swapMovementSides() {
     if (!movementConfig.needsDestination) return
+    setMovementRouteReviewed(false)
     setMovementDraft((current) => ({
       ...current,
       sourceAccountId: current.destinationAccountId || '',
@@ -958,7 +972,10 @@ export default function MohammadLedgerApp() {
     const movement = postMovement({ ...normalizedDraft, note: movementDraft.note.trim() }, accounts)
     setMovements((current) => [...current, movement])
     setFeedback(movement.status === MOVEMENT_STATUSES.POSTED ? 'تم الحفظ وتحديث الأرصدة.' : 'الحركة ناقصة وتحتاج حل.')
-    if (movement.status === MOVEMENT_STATUSES.POSTED) setMovementDraft(emptyMovementDraft(movementDraft.type))
+    if (movement.status === MOVEMENT_STATUSES.POSTED) {
+      setMovementDraft(emptyMovementDraft(movementDraft.type))
+      setMovementRouteReviewed(false)
+    }
   }
 
   function cancelMovement(movementId) {
@@ -1113,6 +1130,7 @@ export default function MohammadLedgerApp() {
   }
 
   function editReviewMovement(movement) {
+    setMovementRouteReviewed(false)
     setMovementDraft({
       type: movement.type || MOVEMENT_TYPES.TRANSFER,
       amount: movement.amount ? String(movement.amount) : '',
@@ -1123,7 +1141,7 @@ export default function MohammadLedgerApp() {
       note: movement.note || '',
     })
     setMovements((current) => current.filter((item) => item.id !== movement.id))
-    setFeedback('الحركة جاهزة للتعديل في نموذج الإدخال.')
+    setFeedback('الحركة جاهزة للتعديل.')
   }
 
   function resolveReviewMovement(event, movement) {
@@ -1405,7 +1423,7 @@ export default function MohammadLedgerApp() {
                 <b>{preview.validation.ok ? 'جاهزة' : 'ناقصة'}</b>
               </div>
 
-              <section className="ml3-step">
+              <section className="ml3-step is-open">
                 <div className="ml3-step-head">
                   <span>1</span>
                   <strong>نوع الحركة</strong>
@@ -1424,7 +1442,7 @@ export default function MohammadLedgerApp() {
                 </div>
               </section>
 
-              <section className="ml3-step">
+              <section className="ml3-step is-open">
                 <div className="ml3-step-head">
                   <span>2</span>
                   <strong>المبلغ</strong>
@@ -1467,7 +1485,8 @@ export default function MohammadLedgerApp() {
                 </div>
               </section>
 
-              <section className="ml3-step">
+              {canChooseMovementAccounts ? (
+              <section className="ml3-step is-open">
                 <div className="ml3-step-head">
                   <span>3</span>
                   <strong>{movementConfig.routeTitle}</strong>
@@ -1499,9 +1518,19 @@ export default function MohammadLedgerApp() {
                     placeholder="اختياري"
                   />
                 </label>
+                <button
+                  type="button"
+                  className="ml3-step-next"
+                  disabled={!hasMovementAccounts}
+                  onClick={() => setMovementRouteReviewed(true)}
+                >
+                  مراجعة
+                </button>
               </section>
+              ) : null}
 
-              <section className="ml3-step ml3-step--final">
+              {canReviewMovement ? (
+              <section className="ml3-step ml3-step--final is-open">
                 <div className="ml3-step-head">
                   <span>4</span>
                   <strong>{preview.validation.ok ? 'راجع التأثير' : 'أكمل الناقص'}</strong>
@@ -1523,6 +1552,7 @@ export default function MohammadLedgerApp() {
                   {preview.validation.ok ? 'تأكيد وحفظ الحركة' : 'حفظ كحركة ناقصة'}
                 </button>
               </section>
+              ) : null}
             </form>
             ) : null}
 

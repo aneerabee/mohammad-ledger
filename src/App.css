@@ -5904,6 +5904,24 @@ tbody tr:hover {
   cursor: pointer;
 }
 
+.ml3-step-next {
+  border: 0;
+  border-radius: 10px;
+  min-height: 30px;
+  background: #25352d;
+  color: #ffffff;
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 950;
+  cursor: pointer;
+}
+
+.ml3-step-next:disabled {
+  cursor: not-allowed;
+  background: #d9e1d7;
+  color: #718078;
+}
+
 .ml3-entry-card input,
 .ml3-entry-card select,
 .ml3-entry-card textarea,
