@@ -449,19 +449,44 @@ function AccountSearchSelect({ label, value, accounts, onChange, allowEmpty = tr
   const [query, setQuery] = useState('')
   const [isChanging, setIsChanging] = useState(false)
   const [quickFilter, setQuickFilter] = useState('')
-  const [textSearchOpen, setTextSearchOpen] = useState(false)
   const normalizedQuery = query.trim().toLowerCase()
   const selectedAccount = accounts.find((account) => account.id === value)
   const showChooser = !selectedAccount || isChanging
   const quickLetters = Array.from(new Set(accounts.map((account) => account.ownerName?.trim()?.[0]).filter(Boolean))).slice(0, 10)
+  const normalizedPreferredOwner = 'أنا'
+  const quickFilters = [
+    { key: '', label: 'الكل' },
+    { key: 'owner:أنا', label: 'أنا' },
+    { key: 'kind:cash', label: 'كاش' },
+    { key: 'kind:bank', label: 'مصرف' },
+    { key: 'kind:usd', label: 'دولار' },
+  ]
+  const matchesQuickFilter = (account) => {
+    if (!quickFilter) return true
+    if (quickFilter.startsWith('letter:')) return account.ownerName?.startsWith(quickFilter.replace('letter:', ''))
+    if (quickFilter === 'owner:أنا') return account.ownerName === normalizedPreferredOwner
+    if (quickFilter === 'kind:cash') return account.valueKind === VALUE_KINDS.CASH || account.subAccountName === 'كاش'
+    if (quickFilter === 'kind:bank') return account.valueKind === VALUE_KINDS.BANK || /مصرف|بنك|حساب/i.test(account.subAccountName || '')
+    if (quickFilter === 'kind:usd') return /دولار|usd/i.test(`${account.ownerName} ${account.subAccountName} ${account.legacyName || ''}`)
+    return true
+  }
+  const rankAccount = (account) => {
+    const ownerName = String(account.ownerName || '').trim()
+    const labelText = accountLabel(account).toLowerCase()
+    if (account.id === value && ownerName === normalizedPreferredOwner) return -30
+    if (ownerName === normalizedPreferredOwner) return -20
+    if (account.id === value) return -15
+    if (normalizedQuery && labelText.startsWith(normalizedQuery)) return -10
+    if (normalizedQuery && ownerName.toLowerCase().startsWith(normalizedQuery)) return -8
+    return 0
+  }
   const filteredAccounts = accounts
     .filter((account) => {
       const haystack = `${account.ownerName} ${account.subAccountName} ${account.legacyName || ''}`.toLowerCase()
       if (normalizedQuery) return haystack.includes(normalizedQuery)
-      if (quickFilter) return account.ownerName?.startsWith(quickFilter)
-      return true
+      return matchesQuickFilter(account)
     })
-    .sort((a, b) => accountLabel(a).localeCompare(accountLabel(b), 'ar'))
+    .sort((a, b) => rankAccount(a) - rankAccount(b) || accountLabel(a).localeCompare(accountLabel(b), 'ar'))
   const visibleAccounts = selectedAccount && !filteredAccounts.some((account) => account.id === selectedAccount.id)
     ? [selectedAccount, ...filteredAccounts]
     : filteredAccounts
@@ -471,7 +496,6 @@ function AccountSearchSelect({ label, value, accounts, onChange, allowEmpty = tr
     onChange(accountId)
     setQuery('')
     setQuickFilter('')
-    setTextSearchOpen(false)
     setIsChanging(false)
   }
 
@@ -495,36 +519,45 @@ function AccountSearchSelect({ label, value, accounts, onChange, allowEmpty = tr
       </div>
       {showChooser ? (
         <>
+          <label className="ml3-search-box">
+            <span>بحث</span>
+            <input
+              value={query}
+              onChange={(event) => {
+                setQuery(event.target.value)
+                setQuickFilter('')
+              }}
+              placeholder="اكتب الاسم أو كاش أو مصرف"
+            />
+          </label>
           <div className="ml3-picker-chips" aria-label="تصفية سريعة">
-            <button type="button" className={!quickFilter && !normalizedQuery ? 'is-active' : ''} onClick={() => { setQuickFilter(''); setQuery('') }}>الكل</button>
+            {quickFilters.map((filter) => (
+              <button
+                type="button"
+                key={filter.key || 'all'}
+                className={quickFilter === filter.key && !normalizedQuery ? 'is-active' : ''}
+                onClick={() => { setQuickFilter(filter.key); setQuery('') }}
+              >
+                {filter.label}
+              </button>
+            ))}
             {quickLetters.map((letter) => (
               <button
                 type="button"
                 key={letter}
-                className={quickFilter === letter ? 'is-active' : ''}
-                onClick={() => { setQuickFilter(letter); setQuery('') }}
+                className={quickFilter === `letter:${letter}` && !normalizedQuery ? 'is-active' : ''}
+                onClick={() => { setQuickFilter(`letter:${letter}`); setQuery('') }}
               >
                 {letter}
               </button>
             ))}
-            <button type="button" className={textSearchOpen ? 'is-active' : ''} onClick={() => setTextSearchOpen((current) => !current)}>كتابة</button>
           </div>
-          {textSearchOpen ? (
-            <label className="ml3-search-box">
-              <span>بحث</span>
-              <input
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder="اكتب الاسم"
-              />
-            </label>
-          ) : null}
           <div className="ml3-picker-results">
             {resultAccounts.map((account) => (
               <button
                 type="button"
                 key={account.id}
-                className={`ml3-picker-option--${visualKind(account)} ${account.id === value ? 'is-selected' : ''}`}
+                className={`ml3-picker-option--${visualKind(account)} ${account.ownerName === normalizedPreferredOwner ? 'is-preferred' : ''} ${account.id === value ? 'is-selected' : ''}`}
                 onClick={() => chooseAccount(account.id)}
               >
                 <span className={`ml3-picker-dot ml3-picker-dot--${visualKind(account)}`} aria-hidden="true" />
