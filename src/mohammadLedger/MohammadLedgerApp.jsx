@@ -419,13 +419,18 @@ function AccountList({ title, subtitle, rows, emptyText = 'لا توجد عنا�
 function AccountSearchSelect({ label, value, accounts, onChange, allowEmpty = true }) {
   const [query, setQuery] = useState('')
   const [isChanging, setIsChanging] = useState(false)
+  const [quickFilter, setQuickFilter] = useState('')
+  const [textSearchOpen, setTextSearchOpen] = useState(false)
   const normalizedQuery = query.trim().toLowerCase()
   const selectedAccount = accounts.find((account) => account.id === value)
   const showChooser = !selectedAccount || isChanging
+  const quickLetters = Array.from(new Set(accounts.map((account) => account.ownerName?.trim()?.[0]).filter(Boolean))).slice(0, 10)
   const filteredAccounts = accounts
     .filter((account) => {
-      if (!normalizedQuery) return true
-      return `${account.ownerName} ${account.subAccountName} ${account.legacyName || ''}`.toLowerCase().includes(normalizedQuery)
+      const haystack = `${account.ownerName} ${account.subAccountName} ${account.legacyName || ''}`.toLowerCase()
+      if (normalizedQuery) return haystack.includes(normalizedQuery)
+      if (quickFilter) return account.ownerName?.startsWith(quickFilter)
+      return true
     })
     .slice(0, 18)
   const visibleAccounts = selectedAccount && !filteredAccounts.some((account) => account.id === selectedAccount.id)
@@ -436,6 +441,8 @@ function AccountSearchSelect({ label, value, accounts, onChange, allowEmpty = tr
   function chooseAccount(accountId) {
     onChange(accountId)
     setQuery('')
+    setQuickFilter('')
+    setTextSearchOpen(false)
     setIsChanging(false)
   }
 
@@ -458,14 +465,30 @@ function AccountSearchSelect({ label, value, accounts, onChange, allowEmpty = tr
       </div>
       {showChooser ? (
         <>
-          <label className="ml3-search-box">
-            <span>بحث</span>
-            <input
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="اكتب الاسم"
-            />
-          </label>
+          <div className="ml3-picker-chips" aria-label="تصفية سريعة">
+            <button type="button" className={!quickFilter && !normalizedQuery ? 'is-active' : ''} onClick={() => { setQuickFilter(''); setQuery('') }}>الكل</button>
+            {quickLetters.map((letter) => (
+              <button
+                type="button"
+                key={letter}
+                className={quickFilter === letter ? 'is-active' : ''}
+                onClick={() => { setQuickFilter(letter); setQuery('') }}
+              >
+                {letter}
+              </button>
+            ))}
+            <button type="button" className={textSearchOpen ? 'is-active' : ''} onClick={() => setTextSearchOpen((current) => !current)}>كتابة</button>
+          </div>
+          {textSearchOpen ? (
+            <label className="ml3-search-box">
+              <span>بحث</span>
+              <input
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="اكتب الاسم"
+              />
+            </label>
+          ) : null}
           <div className="ml3-picker-results">
             {resultAccounts.map((account) => (
               <button
@@ -484,6 +507,34 @@ function AccountSearchSelect({ label, value, accounts, onChange, allowEmpty = tr
           </div>
         </>
       ) : null}
+    </div>
+  )
+}
+
+function NumericEntry({ label, value, onChange, name, placeholder = '0' }) {
+  const textValue = String(value || '')
+  const keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '.', '0', '000']
+
+  function pushKey(key) {
+    if (key === '.' && textValue.includes('.')) return
+    const next = textValue === '0' && key !== '.' ? key : `${textValue}${key}`
+    onChange(next)
+  }
+
+  return (
+    <div className="ml3-number-entry">
+      {name ? <input type="hidden" name={name} value={textValue} /> : null}
+      <div className="ml3-number-display">
+        <span>{label}</span>
+        <strong>{textValue || placeholder}</strong>
+      </div>
+      <div className="ml3-number-pad" aria-label={label}>
+        {keys.map((key) => (
+          <button type="button" key={key} onClick={() => pushKey(key)}>{key}</button>
+        ))}
+        <button type="button" onClick={() => onChange(textValue.slice(0, -1))}>حذف</button>
+        <button type="button" onClick={() => onChange('')}>مسح</button>
+      </div>
     </div>
   )
 }
@@ -737,6 +788,8 @@ function ExternalAccountCard({ account, onCreate }) {
 
 function ReviewMovementCard({ movement, activeAccounts, onResolve, onEdit, onCancel }) {
   const errors = movement.validation?.errors || []
+  const [reviewAmount, setReviewAmount] = useState(movement.amount ? String(movement.amount) : '')
+  const [reviewRate, setReviewRate] = useState(movement.rate ? String(movement.rate) : '')
 
   return (
     <article className="ml3-review-card">
@@ -759,10 +812,9 @@ function ReviewMovementCard({ movement, activeAccounts, onResolve, onEdit, onCan
             ))}
           </select>
         </label>
-        <label>
-          المبلغ
-          <input name="amount" inputMode="decimal" defaultValue={movement.amount || ''} placeholder="0" />
-        </label>
+        <div>
+          <NumericEntry label="المبلغ" name="amount" value={reviewAmount} onChange={setReviewAmount} />
+        </div>
         <label>
           العملة
           <select name="currency" defaultValue={movement.currency || CURRENCIES.DINAR}>
@@ -770,10 +822,9 @@ function ReviewMovementCard({ movement, activeAccounts, onResolve, onEdit, onCan
             <option value={CURRENCIES.USD}>دولار</option>
           </select>
         </label>
-        <label>
-          سعر الصرف
-          <input name="rate" inputMode="decimal" defaultValue={movement.rate || ''} placeholder="اختياري" />
-        </label>
+        <div>
+          <NumericEntry label="سعر الصرف" name="rate" value={reviewRate} onChange={setReviewRate} placeholder="اختياري" />
+        </div>
         <label>
           من
           <select name="sourceAccountId" defaultValue={movement.sourceAccountId || ''}>
@@ -1232,7 +1283,7 @@ export default function MohammadLedgerApp() {
             <button
               type="button"
               key={group.key}
-              className={activeAccountGroup === group.key ? 'is-active' : ''}
+              className={`ml3-account-switcher--${group.key} ${activeAccountGroup === group.key ? 'is-active' : ''}`}
               onClick={() => setActiveAccountGroup(group.key)}
             >
               <strong>{group.label}</strong>
@@ -1267,7 +1318,7 @@ export default function MohammadLedgerApp() {
             <span>{balancesByKind.review.length + reviewMovements.length + unresolvedExternalAccounts.length}</span>
           </div>
           <div className="ml3-review-grid">
-            <section className="ml3-subpanel">
+            <section className="ml3-subpanel ml3-subpanel--review">
               <h3>حسابات غير واضحة</h3>
               {balancesByKind.review.length === 0 ? <p className="ml3-empty">لا توجد حسابات معلقة الآن.</p> : null}
               {balancesByKind.review.map((bucket) => (
@@ -1281,14 +1332,14 @@ export default function MohammadLedgerApp() {
                 />
               ))}
             </section>
-            <section className="ml3-subpanel">
+            <section className="ml3-subpanel ml3-subpanel--external">
               <h3>أسماء جديدة</h3>
               {unresolvedExternalAccounts.length === 0 ? <p className="ml3-empty">لا توجد أسماء خارج الملخص الآن.</p> : null}
               {unresolvedExternalAccounts.map((account) => (
                 <ExternalAccountCard key={account.id} account={account} onCreate={addExternalAccount} />
               ))}
             </section>
-            <section className="ml3-subpanel">
+            <section className="ml3-subpanel ml3-subpanel--movement">
               <h3>حركات ناقصة</h3>
               {reviewMovements.length === 0 ? <p className="ml3-empty">لا توجد حركات ناقصة الآن.</p> : null}
               {reviewMovements.map((movement) => (
@@ -1319,7 +1370,7 @@ export default function MohammadLedgerApp() {
           <div className="ml3-history-list">
             {postedUserMovements.length === 0 ? <p className="ml3-empty">لا توجد حركات جديدة بعد.</p> : null}
             {postedUserMovements.map((movement) => (
-              <article className="ml3-history-row" key={movement.id}>
+              <article className={`ml3-history-row ml3-history-row--${movementTone(movement.type)}`} key={movement.id}>
                 <div>
                   <strong>{movementLabels[movement.type] || movement.type}</strong>
                   <span>{money(movement.amount, movement.currency)} · {movement.status}</span>
@@ -1522,15 +1573,11 @@ export default function MohammadLedgerApp() {
                   <strong>المبلغ</strong>
                 </div>
                 <div className="ml3-field-pair is-single">
-                  <label>
-                    {movementConfig.amountLabel}
-                    <input
-                      inputMode="decimal"
-                      value={movementDraft.amount}
-                      onChange={(event) => updateMovementDraft('amount', event.target.value)}
-                      placeholder="0"
-                    />
-                  </label>
+                  <NumericEntry
+                    label={movementConfig.amountLabel}
+                    value={movementDraft.amount}
+                    onChange={(value) => updateMovementDraft('amount', value)}
+                  />
                 </div>
                 <button type="button" className="ml3-step-next" disabled={!hasMovementAmount} onClick={advanceMovementStep}>
                   التالي
@@ -1592,15 +1639,12 @@ export default function MohammadLedgerApp() {
                   <span>4</span>
                   <strong>السعر</strong>
                 </div>
-                <label>
-                  {movementConfig.rateLabel}
-                  <input
-                    inputMode="decimal"
-                    value={movementDraft.rate}
-                    onChange={(event) => updateMovementDraft('rate', event.target.value)}
-                    placeholder="7.5"
-                  />
-                </label>
+                <NumericEntry
+                  label={movementConfig.rateLabel}
+                  value={movementDraft.rate}
+                  onChange={(value) => updateMovementDraft('rate', value)}
+                  placeholder="7.5"
+                />
                 <button type="button" className="ml3-step-next" disabled={!hasMovementRate} onClick={advanceMovementStep}>
                   التالي
                 </button>
