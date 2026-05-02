@@ -20,8 +20,12 @@ import {
   validateAccount,
   voidMovement,
 } from './ledgerCore'
-
-const STORAGE_KEY = 'mohammad-ledger-v1'
+import {
+  getMohammadPersistenceMode,
+  loadLocalMohammadState,
+  loadMohammadPersistedState,
+  saveMohammadPersistedState,
+} from './mohammadPersistence'
 
 const movementLabels = {
   [MOVEMENT_TYPES.TRANSFER]: 'تحويل',
@@ -227,17 +231,8 @@ function loadInitialLedgerState() {
     accounts: normalizeStoredAccounts(mohammadAccountCatalog),
     movements: createOpeningMovements(mohammadAccountCatalog),
   }
-  if (typeof window === 'undefined') return fallback
-
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY)
-    if (!raw) return fallback
-    const parsed = JSON.parse(raw)
-    if (!Array.isArray(parsed.accounts) || !Array.isArray(parsed.movements)) return fallback
-    return { ...parsed, accounts: normalizeStoredAccounts(parsed.accounts) }
-  } catch {
-    return fallback
-  }
+  const localState = loadLocalMohammadState(fallback)
+  return { ...localState, accounts: normalizeStoredAccounts(localState.accounts) }
 }
 
 function money(value, currency = CURRENCIES.DINAR) {
@@ -845,8 +840,42 @@ function ExternalAccountCard({ account, onCreate }) {
 
 function ReviewMovementCard({ movement, activeAccounts, onResolve, onEdit, onCancel }) {
   const errors = movement.validation?.errors || []
-  const [reviewAmount, setReviewAmount] = useState(movement.amount ? String(movement.amount) : '')
-  const [reviewRate, setReviewRate] = useState(movement.rate ? String(movement.rate) : '')
+  const [reviewDraft, setReviewDraft] = useState({
+    type: movement.type || MOVEMENT_TYPES.TRANSFER,
+    amount: movement.amount ? String(movement.amount) : '',
+    currency: movement.currency || CURRENCIES.DINAR,
+    sourceAccountId: movement.sourceAccountId || '',
+    destinationAccountId: movement.destinationAccountId || '',
+    rate: movement.rate ? String(movement.rate) : '',
+    note: movement.note || '',
+  })
+  const reviewConfig = movementConfigs[reviewDraft.type] || movementConfigs[MOVEMENT_TYPES.TRANSFER]
+  const reviewSourceAccount = activeAccounts.find((account) => account.id === reviewDraft.sourceAccountId)
+  const reviewDestinationAccount = activeAccounts.find((account) => account.id === reviewDraft.destinationAccountId)
+  const postingAccounts = activeAccounts.filter((account) =>
+    account.valueKind !== VALUE_KINDS.EXPENSE &&
+    account.valueKind !== VALUE_KINDS.ASSET &&
+    account.status === ACCOUNT_STATUSES.ACTIVE
+  )
+  const reviewSourceAccounts = reviewDestinationAccount
+    ? postingAccounts.filter((account) => !sameLogicalAccount(account, reviewDestinationAccount))
+    : postingAccounts
+  const reviewDestinationAccounts = reviewSourceAccount
+    ? postingAccounts.filter((account) => !sameLogicalAccount(account, reviewSourceAccount))
+    : postingAccounts
+
+  function updateReviewDraft(field, value) {
+    setReviewDraft((current) => {
+      const next = { ...current, [field]: value }
+      if (field === 'type') {
+        const config = movementConfigs[value] || movementConfigs[MOVEMENT_TYPES.TRANSFER]
+        next.currency = config.currency || next.currency
+        next.destinationAccountId = config.needsDestination ? next.destinationAccountId : ''
+        next.rate = config.needsRate ? next.rate : ''
+      }
+      return next
+    })
+  }
 
   return (
     <article className="ml3-review-card">
@@ -860,49 +889,65 @@ function ReviewMovementCard({ movement, activeAccounts, onResolve, onEdit, onCan
       <div className="ml3-issue-chips">
         {errors.map((error) => <span key={`${movement.id}-${error.field}-${error.message}`}>{error.field}</span>)}
       </div>
-      <form className="ml3-decision-grid" onSubmit={(event) => onResolve(event, movement)}>
+      <form className="ml3-decision-grid ml3-decision-grid--movement" onSubmit={(event) => onResolve(event, movement, reviewDraft)}>
         <label>
           نوع الحركة
-          <select name="type" defaultValue={movement.type || MOVEMENT_TYPES.TRANSFER}>
+          <select value={reviewDraft.type} onChange={(event) => updateReviewDraft('type', event.target.value)}>
             {Object.entries(movementLabels).map(([value, label]) => (
               <option key={value} value={value}>{label}</option>
             ))}
           </select>
         </label>
         <div>
-          <NumericEntry label="المبلغ" name="amount" value={reviewAmount} onChange={setReviewAmount} />
+          <NumericEntry label={reviewConfig.amountLabel || 'المبلغ'} value={reviewDraft.amount} onChange={(value) => updateReviewDraft('amount', value)} />
         </div>
-        <label>
-          العملة
-          <select name="currency" defaultValue={movement.currency || CURRENCIES.DINAR}>
-            <option value={CURRENCIES.DINAR}>دينار</option>
-            <option value={CURRENCIES.USD}>دولار</option>
-          </select>
-        </label>
-        <div>
-          <NumericEntry label="سعر الصرف" name="rate" value={reviewRate} onChange={setReviewRate} placeholder="اختياري" />
+        {reviewConfig.currencyLocked ? (
+          <div className="ml3-currency-lock">
+            <span>العملة</span>
+            <strong>{reviewConfig.currencyText}</strong>
+          </div>
+        ) : (
+          <label>
+            العملة
+            <select value={reviewDraft.currency} onChange={(event) => updateReviewDraft('currency', event.target.value)}>
+              <option value={CURRENCIES.DINAR}>دينار</option>
+              <option value={CURRENCIES.USD}>دولار</option>
+            </select>
+          </label>
+        )}
+        {reviewConfig.needsRate ? (
+          <div>
+            <NumericEntry
+              label={reviewConfig.rateLabel || 'سعر الصرف'}
+              value={reviewDraft.rate}
+              onChange={(value) => updateReviewDraft('rate', value)}
+              placeholder="7.5"
+            />
+          </div>
+        ) : null}
+        <div className="ml3-decision-wide">
+          <AccountSearchSelect
+            label={reviewConfig.sourceLabel || 'من'}
+            value={reviewDraft.sourceAccountId || ''}
+            accounts={reviewSourceAccounts}
+            onChange={(value) => updateReviewDraft('sourceAccountId', value || '')}
+            preferredAccountIds={['me-cash', 'me-jumhouria', 'saeed-cash', 'saeed-bank']}
+          />
         </div>
-        <label>
-          من
-          <select name="sourceAccountId" defaultValue={movement.sourceAccountId || ''}>
-            <option value="">بدون مصدر</option>
-            {activeAccounts.map((account) => (
-              <option key={account.id} value={account.id}>{accountLabel(account)}</option>
-            ))}
-          </select>
-        </label>
-        <label>
-          إلى
-          <select name="destinationAccountId" defaultValue={movement.destinationAccountId || ''}>
-            <option value="">بدون وجهة</option>
-            {activeAccounts.map((account) => (
-              <option key={account.id} value={account.id}>{accountLabel(account)}</option>
-            ))}
-          </select>
-        </label>
+        {reviewConfig.needsDestination ? (
+          <div className="ml3-decision-wide">
+            <AccountSearchSelect
+              label={reviewConfig.destinationLabel || 'إلى'}
+              value={reviewDraft.destinationAccountId || ''}
+              accounts={reviewDestinationAccounts}
+              onChange={(value) => updateReviewDraft('destinationAccountId', value || '')}
+              preferredAccountIds={['me-cash', 'me-jumhouria', 'saeed-cash', 'saeed-bank']}
+            />
+          </div>
+        ) : null}
         <label className="ml3-decision-wide">
           ملاحظة
-          <input name="note" defaultValue={movement.note || ''} placeholder="سبب الحركة أو التصحيح" />
+          <input value={reviewDraft.note} onChange={(event) => updateReviewDraft('note', event.target.value)} placeholder="سبب الحركة أو التصحيح" />
         </label>
         <div className="ml3-decision-actions">
           <button type="submit" className="ml3-mini-action is-confirm">إصلاح واعتماد</button>
@@ -951,6 +996,10 @@ export default function MohammadLedgerApp() {
   const [accountDraft, setAccountDraft] = useState(emptyAccountDraft)
   const [selectedAccountId, setSelectedAccountId] = useState('')
   const [feedback, setFeedback] = useState('')
+  const [isHydrated, setIsHydrated] = useState(false)
+  const [storageMode, setStorageMode] = useState(getMohammadPersistenceMode)
+  const [saveStatus, setSaveStatus] = useState('loading')
+  const [pendingUndo, setPendingUndo] = useState(null)
 
   useEffect(() => {
     if (typeof document === 'undefined') return undefined
@@ -1042,10 +1091,56 @@ export default function MohammadLedgerApp() {
   const selectedBucket = balances.find((bucket) => bucket.account.id === selectedAccountId) || null
   const draftSourceAccount = selectedSourceAccount
   const draftDestinationAccount = selectedDestinationAccount
+
   useEffect(() => {
-    if (typeof window === 'undefined') return
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ accounts, movements, savedAt: new Date().toISOString() }))
-  }, [accounts, movements])
+    let cancelled = false
+
+    async function hydrateLedger() {
+      const result = await loadMohammadPersistedState(initialState)
+      if (cancelled) return
+      setStorageMode(result.mode)
+      setAccounts(normalizeStoredAccounts(result.state.accounts))
+      setMovements(result.state.movements)
+      setSaveStatus(result.loadError ? 'local-only' : 'saved')
+      setIsHydrated(true)
+      if (result.loadError) {
+        setFeedback('تم فتح النسخة المحلية. السحابة غير جاهزة الآن.')
+      }
+    }
+
+    hydrateLedger()
+    return () => {
+      cancelled = true
+    }
+  }, [initialState])
+
+  useEffect(() => {
+    if (!isHydrated) return undefined
+    let cancelled = false
+    setSaveStatus('saving')
+
+    saveMohammadPersistedState({ accounts, movements })
+      .then((result) => {
+        if (cancelled) return
+        setStorageMode(result.mode)
+        setSaveStatus(result.supabaseOk ? 'saved' : 'local')
+      })
+      .catch((err) => {
+        if (cancelled) return
+        console.warn('[mohammad-ledger] save failed:', err?.message || err)
+        setSaveStatus('local-only')
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [accounts, movements, isHydrated])
+
+  useEffect(() => {
+    if (!pendingUndo) return undefined
+    const timer = window.setTimeout(() => setPendingUndo(null), 18000)
+    return () => window.clearTimeout(timer)
+  }, [pendingUndo])
 
   useEffect(() => {
     if (typeof document === 'undefined') return undefined
@@ -1150,6 +1245,10 @@ export default function MohammadLedgerApp() {
     const movement = postMovement({ ...normalizedDraft, note: movementDraft.note.trim() }, accounts)
     setMovements((current) => [...current, movement])
     setFeedback(movement.status === MOVEMENT_STATUSES.POSTED ? 'تم الحفظ وتحديث الأرصدة.' : 'الحركة ناقصة وتحتاج حل.')
+    setPendingUndo({
+      movementId: movement.id,
+      label: `${movementLabels[movement.type] || 'حركة'} · ${money(movement.amount, movement.currency)}`,
+    })
     if (movement.status === MOVEMENT_STATUSES.POSTED) {
       setMovementDraft(emptyMovementDraft(movementDraft.type))
       setMovementStep(MOVEMENT_ENTRY_STEPS.TYPE)
@@ -1172,7 +1271,13 @@ export default function MohammadLedgerApp() {
         return result.ok ? result.movement : movement
       }),
     )
+    setPendingUndo((current) => (current?.movementId === movementId ? null : current))
     setFeedback('تم إلغاء الحركة وبقيت في السجل.')
+  }
+
+  function undoPendingMovement() {
+    if (!pendingUndo?.movementId) return
+    cancelMovement(pendingUndo.movementId)
   }
 
   function addAccount(event) {
@@ -1261,6 +1366,11 @@ export default function MohammadLedgerApp() {
   }
 
   function disableAccount(accountId) {
+    const bucket = balanceByAccountId.get(accountId)
+    if (bucket && nonZero(bucket)) {
+      setFeedback('لا يمكن إخفاء حساب عليه رصيد. صفّر الرصيد أو ادمجه أولًا.')
+      return
+    }
     setAccounts((current) =>
       current.map((account) =>
         account.id === accountId
@@ -1330,19 +1440,19 @@ export default function MohammadLedgerApp() {
     setFeedback('الحركة جاهزة للتعديل.')
   }
 
-  function resolveReviewMovement(event, movement) {
+  function resolveReviewMovement(event, movement, reviewDraft) {
     event.preventDefault()
-    const formData = new FormData(event.currentTarget)
+    const config = movementConfigs[reviewDraft.type] || movementConfigs[MOVEMENT_TYPES.TRANSFER]
     const candidate = postMovement(
       {
         ...movement,
-        type: String(formData.get('type') || movement.type),
-        amount: Number(formData.get('amount')),
-        currency: String(formData.get('currency') || CURRENCIES.DINAR),
-        sourceAccountId: String(formData.get('sourceAccountId') || '') || null,
-        destinationAccountId: String(formData.get('destinationAccountId') || '') || null,
-        rate: formData.get('rate') === '' ? undefined : Number(formData.get('rate')),
-        note: String(formData.get('note') || '').trim(),
+        type: reviewDraft.type,
+        amount: Number(reviewDraft.amount),
+        currency: config.currency || reviewDraft.currency,
+        sourceAccountId: reviewDraft.sourceAccountId || null,
+        destinationAccountId: config.needsDestination ? reviewDraft.destinationAccountId || null : null,
+        rate: reviewDraft.rate === '' ? undefined : Number(reviewDraft.rate),
+        note: String(reviewDraft.note || '').trim(),
       },
       accounts,
     )
@@ -1513,7 +1623,7 @@ export default function MohammadLedgerApp() {
             <span>أدفع للناس</span>
             <strong>{money(totals.iOwePeople)}</strong>
           </button>
-          <button type="button" className="ml3-home-card is-money" onClick={() => { setActiveSection('accounts'); setActiveAccountGroup('money') }}>
+          <button type="button" className="ml3-home-card is-money" onClick={() => { setActiveSection('accounts'); setActiveAccountGroup('people') }}>
             <span>أماكن المال</span>
             <strong>{balancesByKind.money.length} حساب</strong>
           </button>
@@ -1541,6 +1651,14 @@ export default function MohammadLedgerApp() {
     )
   }
 
+  const storageText = {
+    loading: 'تحميل',
+    saving: 'حفظ',
+    saved: storageMode === 'supabase' ? 'سحابي' : 'محلي',
+    local: 'محلي',
+    'local-only': 'محلي فقط',
+  }[saveStatus] || 'محلي'
+
   return (
     <main className="ml3-app" dir="rtl">
       <section className="ml3-shell">
@@ -1559,6 +1677,7 @@ export default function MohammadLedgerApp() {
             </div>
           </div>
           <div className="ml3-top-actions">
+            <b className={`ml3-save-state ml3-save-state--${saveStatus}`}>{storageText}</b>
             <b>{activeAccounts.length} حساب</b>
             <b>{reviewMovements.length} مشكلة</b>
           </div>
@@ -1600,6 +1719,12 @@ export default function MohammadLedgerApp() {
           {activeSection === 'entry' ? (
           <aside className="ml3-entry">
             {feedback ? <div className="ml3-feedback">{feedback}</div> : null}
+            {pendingUndo ? (
+              <div className="ml3-undo-banner">
+                <span>{pendingUndo.label}</span>
+                <button type="button" onClick={undoPendingMovement}>تراجع</button>
+              </div>
+            ) : null}
             <div className="ml3-entry-mode">
               <button
                 type="button"
@@ -1946,6 +2071,12 @@ export default function MohammadLedgerApp() {
           {activeSection !== 'entry' ? (
           <section className="ml3-content">
             {feedback ? <div className="ml3-feedback">{feedback}</div> : null}
+            {pendingUndo ? (
+              <div className="ml3-undo-banner">
+                <span>{pendingUndo.label}</span>
+                <button type="button" onClick={undoPendingMovement}>تراجع</button>
+              </div>
+            ) : null}
             {renderSection()}
           </section>
           ) : null}

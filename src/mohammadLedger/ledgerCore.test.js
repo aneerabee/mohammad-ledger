@@ -262,4 +262,25 @@ describe('mohammad ledger core', () => {
     expect(validateAccount(account, mohammadAccountCatalog).ok).toBe(true)
     expect(validateAccount({ ...account, ownerName: '' }, mohammadAccountCatalog).ok).toBe(false)
   })
+
+  it('rejects duplicate active accounts with the same owner and detail', () => {
+    const account = createAccount({
+      id: 'duplicate-saeed-cash',
+      ownerName: 'سعيد',
+      subAccountName: 'كاش',
+      type: ACCOUNT_TYPES.PERSON,
+      valueKind: 'receivable',
+    })
+    const inactiveAccount = createAccount({
+      id: 'inactive-saeed-cash',
+      ownerName: 'سعيد',
+      subAccountName: 'كاش',
+      type: ACCOUNT_TYPES.PERSON,
+      valueKind: 'receivable',
+      status: ACCOUNT_STATUSES.INACTIVE,
+    })
+
+    expect(validateAccount(account, mohammadAccountCatalog).ok).toBe(false)
+    expect(validateAccount(account, [inactiveAccount]).ok).toBe(true)
+  })
 })

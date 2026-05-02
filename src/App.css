@@ -5316,6 +5316,22 @@ tbody tr:hover {
   font-size: 0.8rem;
 }
 
+.ml3-top-actions .ml3-save-state {
+  background: #e9f7ee;
+  color: #17613d;
+}
+
+.ml3-top-actions .ml3-save-state--saving,
+.ml3-top-actions .ml3-save-state--loading {
+  background: #fff5df;
+  color: #8c5b15;
+}
+
+.ml3-top-actions .ml3-save-state--local-only {
+  background: #fff0ec;
+  color: #8a332b;
+}
+
 .ml3-metrics {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(125px, 1fr));
@@ -5571,6 +5587,42 @@ tbody tr:hover {
 .ml3-feedback,
 .ml3-entry-mode {
   grid-column: 1 / -1;
+}
+
+.ml3-undo-banner {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+  border: 1px solid #bedfca;
+  border-radius: 10px;
+  background: #effaf3;
+  color: #164f35;
+  padding: 7px 9px;
+  font-size: 0.78rem;
+  font-weight: 900;
+  animation: ml3-rise 0.18s ease both;
+}
+
+.ml3-undo-banner span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ml3-undo-banner button {
+  border: 0;
+  border-radius: 999px;
+  background: #17613d;
+  color: #ffffff;
+  padding: 5px 11px;
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 950;
+  cursor: pointer;
 }
 
 .ml3-entry-mode {
@@ -7286,6 +7338,10 @@ tbody tr:hover {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 6px;
+}
+
+.ml3-decision-grid--movement {
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .ml3-decision-grid label,

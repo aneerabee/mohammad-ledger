@@ -73,3 +73,15 @@ create index if not exists idx_wo_transfers_settled on wo_transfers ((payload->>
 create index if not exists idx_wo_ledger_customer on wo_ledger_entries ((payload->>'customerId'));
 create index if not exists idx_wo_ledger_type on wo_ledger_entries ((payload->>'type'));
 create index if not exists idx_wo_daily_closings_date on wo_daily_closings ((payload->>'date'));
+
+-- Mohammad Ledger state document
+create table if not exists ml_state (
+  id text primary key,
+  payload jsonb not null,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+alter table ml_state enable row level security;
+
+create policy "ml_state_all" on ml_state for all using (true) with check (true);

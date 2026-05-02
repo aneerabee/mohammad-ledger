@@ -319,6 +319,8 @@ export function createAccount({
 
 export function validateAccount(account, existingAccounts = []) {
   const errors = []
+  const ownerName = String(account?.ownerName || '').trim()
+  const subAccountName = String(account?.subAccountName || '').trim()
   if (!account?.ownerName?.trim()) errors.push({ field: 'ownerName', message: 'الاسم الرئيسي مطلوب.' })
   if (!account?.subAccountName?.trim()) {
     errors.push({ field: 'subAccountName', message: 'نوع/اسم الحساب الفرعي مطلوب.' })
@@ -328,6 +330,16 @@ export function validateAccount(account, existingAccounts = []) {
   }
   if (existingAccounts.some((item) => item.id === account?.id)) {
     errors.push({ field: 'id', message: 'معرف الحساب مستخدم مسبقًا.' })
+  }
+  const hasDuplicateLogicalAccount = existingAccounts.some((item) => {
+    if (!item || item.status === ACCOUNT_STATUSES.INACTIVE) return false
+    return (
+      String(item.ownerName || '').trim() === ownerName &&
+      String(item.subAccountName || '').trim() === subAccountName
+    )
+  })
+  if (ownerName && subAccountName && hasDuplicateLogicalAccount) {
+    errors.push({ field: 'subAccountName', message: 'يوجد حساب بنفس الاسم ونفس التفصيل.' })
   }
 
   return { ok: errors.length === 0, errors }
