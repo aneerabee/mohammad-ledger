@@ -203,15 +203,6 @@ const accountTypeLabels = {
   [ACCOUNT_TYPES.REVIEW]: 'يحتاج حل',
 }
 
-const valueKindLabels = {
-  [VALUE_KINDS.RECEIVABLE]: 'حساب شخص',
-  [VALUE_KINDS.CASH]: 'كاش عندي',
-  [VALUE_KINDS.BANK]: 'مصرفي عندي',
-  [VALUE_KINDS.EXPENSE]: 'مصروف نهائي',
-  [VALUE_KINDS.ASSET]: 'شيء له قيمة',
-  [VALUE_KINDS.REVIEW]: 'يحتاج حل',
-}
-
 function normalizeStoredAccounts(accounts = []) {
   return accounts.map((account) => {
     if (account.id === 'saeed-bank' && account.type === ACCOUNT_TYPES.BANK && account.valueKind === VALUE_KINDS.BANK) {
@@ -296,6 +287,12 @@ function movementTime(value) {
   return date.toLocaleTimeString('ar-LY', { hour: '2-digit', minute: '2-digit' })
 }
 
+function movementDateTime(value) {
+  const date = new Date(value || Date.now())
+  if (Number.isNaN(date.getTime())) return ''
+  return date.toLocaleString('ar-LY', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+}
+
 function isToday(value) {
   const date = new Date(value || '')
   if (Number.isNaN(date.getTime())) return false
@@ -367,6 +364,8 @@ function compareBalanceBuckets(a, b) {
 function AccountRow({ bucket, muted = false, onConfirm, onDisable, onOpen }) {
   const { account, dinar, usd } = bucket
   const balanceTone = dinar > 0 ? 'is-positive' : dinar < 0 ? 'is-negative' : 'is-zero'
+  const kindText = accountKindText(account)
+  const showKind = kindText && kindText !== account.subAccountName
   return (
     <article className={`ml3-account-row ml3-account-row--${visualKind(account)} ${balanceTone} ${muted ? 'is-muted' : ''}`}>
       <button type="button" className="ml3-account-main" onClick={() => onOpen?.(account.id)}>
@@ -374,11 +373,11 @@ function AccountRow({ bucket, muted = false, onConfirm, onDisable, onOpen }) {
         <span>{account.subAccountName}</span>
       </button>
       <div className="ml3-account-meta">
-        <span>{accountKindText(account)}</span>
+        {showKind ? <span>{kindText}</span> : null}
         {account.status === ACCOUNT_STATUSES.NEEDS_REVIEW ? <b>تأكيد</b> : null}
       </div>
       <div className={`ml3-account-values ${balanceTone}`}>
-        {Math.abs(dinar) > 0.000001 ? <strong>{formatDisplayMeaning(account, dinar)}</strong> : <span>لا يوجد رصيد</span>}
+        {Math.abs(dinar) > 0.000001 ? <strong>{formatDisplayMeaning(account, dinar)}</strong> : <span>صفر</span>}
         {Math.abs(usd) > 0.000001 ? <strong>{money(usd, CURRENCIES.USD)}</strong> : null}
       </div>
       {(onConfirm || onDisable) && (
@@ -506,8 +505,7 @@ function AccountSearchSelect({ label, value, accounts, onChange, allowEmpty = tr
       </div>
       <div className={`ml3-picked-account ${selectedAccount ? `is-selected ml3-picked-account--${visualKind(selectedAccount)}` : ''}`}>
         <div>
-          <span>{selectedAccount ? 'تم الاختيار' : 'اختر حساب'}</span>
-          <strong>{selectedAccount ? accountLabel(selectedAccount) : 'ابحث أو اختر من القائمة'}</strong>
+          <strong>{selectedAccount ? accountLabel(selectedAccount) : 'اختر الحساب'}</strong>
         </div>
         {selectedAccount ? (
           <div className="ml3-picked-actions">
@@ -579,6 +577,7 @@ function AccountSearchSelect({ label, value, accounts, onChange, allowEmpty = tr
                 <strong>{account.ownerName}</strong>
                 <span>{account.subAccountName}</span>
                 <b>{accountKindText(account)}</b>
+                {account.id === value ? <em>مختار</em> : null}
               </button>
             ))}
             {normalizedQuery && resultAccounts.length === 0 ? <p>لا توجد نتيجة</p> : null}
@@ -642,6 +641,48 @@ function MovementMiniRow({ movement, accountById, onCancel }) {
               </span>
             )
           })}
+        </div>
+      ) : null}
+      {movement.note ? <small>{movement.note}</small> : null}
+      {movement.status === MOVEMENT_STATUSES.POSTED ? (
+        <button type="button" onClick={() => onCancel(movement.id)}>إلغاء</button>
+      ) : null}
+    </article>
+  )
+}
+
+function HistoryMovementRow({ movement, accountById, onCancel }) {
+  const source = accountById.get(movement.sourceAccountId)
+  const destination = accountById.get(movement.destinationAccountId)
+  const effects = movement.status === MOVEMENT_STATUSES.POSTED ? buildPostingEntries(movement) : []
+  const statusTone = movement.status === MOVEMENT_STATUSES.POSTED ? 'تم' : movementStatusLabel(movement.status)
+
+  return (
+    <article className={`ml3-history-row ml3-history-row--${movementTone(movement.type)} ${movement.status === MOVEMENT_STATUSES.VOIDED ? 'is-muted' : ''}`}>
+      <div className="ml3-history-main">
+        <strong>{movementLabels[movement.type] || movement.type}</strong>
+        <span>{movementDateTime(movement.createdAt || movement.updatedAt)} · {money(movement.amount, movement.currency)} · {statusTone}</span>
+      </div>
+      <div className="ml3-history-route">
+        {source ? <b>{accountLabel(source)}</b> : <b>بدون مصدر</b>}
+        {destination ? <b>{accountLabel(destination)}</b> : null}
+      </div>
+      {effects.length ? (
+        <div className="ml3-history-effects">
+          {effects.map((effect) => {
+            const account = accountById.get(effect.accountId)
+            return (
+              <span key={`${movement.id}-${effect.accountId}-${effect.currency}`}>
+                {account?.ownerName || effect.accountId}: {signedMoney(effect.delta, effect.currency)}
+              </span>
+            )
+          })}
+        </div>
+      ) : movement.validation?.errors?.length ? (
+        <div className="ml3-history-effects is-review">
+          {movement.validation.errors.slice(0, 2).map((error) => (
+            <span key={`${movement.id}-${error.field}`}>{error.message}</span>
+          ))}
         </div>
       ) : null}
       {movement.note ? <small>{movement.note}</small> : null}
@@ -1573,25 +1614,19 @@ export default function MohammadLedgerApp() {
         <section className="ml3-panel">
           <div className="ml3-panel-head">
             <div>
-              <h2>السجل</h2>
+            <h2>السجل</h2>
             </div>
             <span>{postedUserMovements.length}</span>
           </div>
           <div className="ml3-history-list">
             {postedUserMovements.length === 0 ? <p className="ml3-empty">لا شيء</p> : null}
             {postedUserMovements.map((movement) => (
-              <article className={`ml3-history-row ml3-history-row--${movementTone(movement.type)}`} key={movement.id}>
-                <div>
-                  <strong>{movementLabels[movement.type] || movement.type}</strong>
-                  <span>{money(movement.amount, movement.currency)} · {movement.status}</span>
-                  {movement.note ? <small>{movement.note}</small> : null}
-                </div>
-                {movement.status === MOVEMENT_STATUSES.POSTED ? (
-                  <button type="button" onClick={() => cancelMovement(movement.id)}>
-                    إلغاء
-                  </button>
-                ) : null}
-              </article>
+              <HistoryMovementRow
+                key={movement.id}
+                movement={movement}
+                accountById={accountById}
+                onCancel={cancelMovement}
+              />
             ))}
           </div>
         </section>
@@ -2021,10 +2056,10 @@ export default function MohammadLedgerApp() {
             <form className="ml3-add-account" onSubmit={addAccount}>
               <div className="ml3-entry-head">
                 <div>
-                  <span>إضافة حساب</span>
-                  <h2>تحديد دقيق</h2>
+                  <span>حساب جديد</span>
+                  <h2>{accountPresets.find((preset) => preset.type === accountDraft.type && preset.valueKind === accountDraft.valueKind)?.title || 'حساب'}</h2>
                 </div>
-                <b>{accountTypeLabels[accountDraft.type]}</b>
+                <b>{accountDraft.subAccountName}</b>
               </div>
               <div className="ml3-account-presets">
                 {accountPresets.map((preset) => (
@@ -2035,7 +2070,6 @@ export default function MohammadLedgerApp() {
                     onClick={() => chooseAccountPreset(preset)}
                   >
                     <strong>{preset.title}</strong>
-                    <span>{preset.detail}</span>
                   </button>
                 ))}
               </div>
@@ -2047,20 +2081,20 @@ export default function MohammadLedgerApp() {
                   placeholder="اسم الشخص أو المكان أو الأصل"
                 />
               </label>
-              <label>
-                طريقة التعامل
-                <select
-                  value={accountDraft.subAccountName}
-                  onChange={(event) => setAccountDraft((current) => ({ ...current, subAccountName: event.target.value }))}
-                >
-                  {accountDetailOptions.map((option) => (
-                    <option key={option} value={option}>{option}</option>
-                  ))}
-                </select>
-              </label>
+              <div className="ml3-account-detail-choice" aria-label="تفصيل الحساب">
+                {accountDetailOptions.map((option) => (
+                  <button
+                    type="button"
+                    key={option}
+                    className={accountDraft.subAccountName === option ? 'is-active' : ''}
+                    onClick={() => setAccountDraft((current) => ({ ...current, subAccountName: option }))}
+                  >
+                    {option}
+                  </button>
+                ))}
+              </div>
               <div className="ml3-account-summary">
-                <span>سيظهر كـ</span>
-                <strong>{accountTypeLabels[accountDraft.type]} · {valueKindLabels[accountDraft.valueKind]} · {accountDraft.subAccountName}</strong>
+                <strong>{accountDraft.ownerName || 'الاسم'} · {accountDraft.subAccountName} · {accountTypeLabels[accountDraft.type]}</strong>
               </div>
               <button type="submit">إضافة حساب</button>
             </form>
