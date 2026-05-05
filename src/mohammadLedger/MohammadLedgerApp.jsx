@@ -344,6 +344,38 @@ function accountKindText(account) {
   return account.subAccountName || 'شخص'
 }
 
+function accountBalanceChip(account, bucket) {
+  const dinar = Number(bucket?.dinar || 0)
+  const usd = Number(bucket?.usd || 0)
+  const hasDinar = Math.abs(dinar) > 0.000001
+  const hasUsd = Math.abs(usd) > 0.000001
+
+  if (!hasDinar && hasUsd) {
+    return { tone: usd > 0 ? 'positive' : 'negative', text: money(Math.abs(usd), CURRENCIES.USD) }
+  }
+  if (!hasDinar) return { tone: 'zero', text: 'صفر' }
+
+  if (account?.valueKind === VALUE_KINDS.CASH || account?.valueKind === VALUE_KINDS.BANK) {
+    return {
+      tone: dinar > 0 ? 'positive' : 'negative',
+      text: dinar > 0 ? money(dinar) : `ناقص ${money(Math.abs(dinar))}`,
+    }
+  }
+
+  if (account?.valueKind === VALUE_KINDS.EXPENSE) {
+    return { tone: 'expense', text: money(Math.abs(dinar)) }
+  }
+
+  if (account?.valueKind === VALUE_KINDS.ASSET) {
+    return { tone: 'asset', text: money(Math.abs(dinar)) }
+  }
+
+  return {
+    tone: dinar > 0 ? 'positive' : 'negative',
+    text: dinar > 0 ? `أقبض ${money(dinar)}` : `أدفع ${money(Math.abs(dinar))}`,
+  }
+}
+
 function sameLogicalAccount(left, right) {
   if (!left || !right) return false
   return (
@@ -439,12 +471,13 @@ function AccountList({ title, subtitle, rows, emptyText = 'لا توجد عنا�
   )
 }
 
-function AccountSearchSelect({ label, value, accounts, onChange, allowEmpty = true, preferredAccountIds = [] }) {
+function AccountSearchSelect({ label, value, accounts, onChange, allowEmpty = true, preferredAccountIds = [], balanceByAccountId = new Map() }) {
   const [query, setQuery] = useState('')
   const [isChanging, setIsChanging] = useState(false)
   const [quickFilter, setQuickFilter] = useState('')
   const normalizedQuery = query.trim().toLowerCase()
   const selectedAccount = accounts.find((account) => account.id === value)
+  const selectedBalance = selectedAccount ? accountBalanceChip(selectedAccount, balanceByAccountId.get(selectedAccount.id)) : null
   const showChooser = !selectedAccount || isChanging
   const preferredIndexById = new Map(preferredAccountIds.map((accountId, index) => [accountId, index]))
   const preferredAccounts = preferredAccountIds
@@ -499,17 +532,14 @@ function AccountSearchSelect({ label, value, accounts, onChange, allowEmpty = tr
   }
 
   return (
-    <div className="ml3-account-picker">
-      <div className="ml3-picker-head">
-        <strong>{label}</strong>
-      </div>
+    <div className="ml3-account-picker" aria-label={label}>
       <div className={`ml3-picked-account ${selectedAccount ? `is-selected ml3-picked-account--${visualKind(selectedAccount)}` : ''}`}>
         <div>
           <strong>{selectedAccount ? accountLabel(selectedAccount) : 'اختر الحساب'}</strong>
         </div>
         {selectedAccount ? (
           <div className="ml3-picked-actions">
-            <b>{accountKindText(selectedAccount)}</b>
+            <b className={`ml3-balance-chip is-${selectedBalance.tone}`}>{selectedBalance.text}</b>
             <button type="button" onClick={() => setIsChanging(true)}>تغيير</button>
             {allowEmpty ? <button type="button" onClick={() => chooseAccount(null)}>مسح</button> : null}
           </div>
@@ -566,20 +596,23 @@ function AccountSearchSelect({ label, value, accounts, onChange, allowEmpty = tr
             ))}
           </div>
           <div className="ml3-picker-results">
-            {resultAccounts.map((account) => (
-              <button
-                type="button"
-                key={account.id}
-                className={`ml3-picker-option--${visualKind(account)} ${account.ownerName === normalizedPreferredOwner ? 'is-preferred' : ''} ${account.id === value ? 'is-selected' : ''}`}
-                onClick={() => chooseAccount(account.id)}
-              >
-                <span className={`ml3-picker-dot ml3-picker-dot--${visualKind(account)}`} aria-hidden="true" />
-                <strong>{account.ownerName}</strong>
-                <span>{account.subAccountName}</span>
-                <b>{accountKindText(account)}</b>
-                {account.id === value ? <em>مختار</em> : null}
-              </button>
-            ))}
+            {resultAccounts.map((account) => {
+              const balanceChip = accountBalanceChip(account, balanceByAccountId.get(account.id))
+              return (
+                <button
+                  type="button"
+                  key={account.id}
+                  className={`ml3-picker-option--${visualKind(account)} ${account.ownerName === normalizedPreferredOwner ? 'is-preferred' : ''} ${account.id === value ? 'is-selected' : ''}`}
+                  onClick={() => chooseAccount(account.id)}
+                >
+                  <span className={`ml3-picker-dot ml3-picker-dot--${visualKind(account)}`} aria-hidden="true" />
+                  <strong>{account.ownerName}</strong>
+                  <span>{account.subAccountName}</span>
+                  <b className={`ml3-balance-chip is-${balanceChip.tone}`}>{balanceChip.text}</b>
+                  {account.id === value ? <em>مختار</em> : null}
+                </button>
+              )
+            })}
             {normalizedQuery && resultAccounts.length === 0 ? <p>لا توجد نتيجة</p> : null}
           </div>
         </>
@@ -879,7 +912,7 @@ function ExternalAccountCard({ account, onCreate }) {
   )
 }
 
-function ReviewMovementCard({ movement, activeAccounts, onResolve, onEdit, onCancel }) {
+function ReviewMovementCard({ movement, activeAccounts, balanceByAccountId, onResolve, onEdit, onCancel }) {
   const errors = movement.validation?.errors || []
   const [reviewDraft, setReviewDraft] = useState({
     type: movement.type || MOVEMENT_TYPES.TRANSFER,
@@ -973,6 +1006,7 @@ function ReviewMovementCard({ movement, activeAccounts, onResolve, onEdit, onCan
             accounts={reviewSourceAccounts}
             onChange={(value) => updateReviewDraft('sourceAccountId', value || '')}
             preferredAccountIds={['me-cash', 'me-jumhouria', 'saeed-cash', 'saeed-bank']}
+            balanceByAccountId={balanceByAccountId}
           />
         </div>
         {reviewConfig.needsDestination ? (
@@ -983,6 +1017,7 @@ function ReviewMovementCard({ movement, activeAccounts, onResolve, onEdit, onCan
               accounts={reviewDestinationAccounts}
               onChange={(value) => updateReviewDraft('destinationAccountId', value || '')}
               preferredAccountIds={['me-cash', 'me-jumhouria', 'saeed-cash', 'saeed-bank']}
+              balanceByAccountId={balanceByAccountId}
             />
           </div>
         ) : null}
@@ -1040,6 +1075,7 @@ export default function MohammadLedgerApp() {
   const [isHydrated, setIsHydrated] = useState(false)
   const [storageMode, setStorageMode] = useState(getMohammadPersistenceMode)
   const [saveStatus, setSaveStatus] = useState('loading')
+  const [syncProblem, setSyncProblem] = useState(false)
   const [pendingUndo, setPendingUndo] = useState(null)
 
   useEffect(() => {
@@ -1143,6 +1179,7 @@ export default function MohammadLedgerApp() {
       setAccounts(normalizeStoredAccounts(result.state.accounts))
       setMovements(result.state.movements)
       setSaveStatus(result.loadError ? 'local-only' : 'saved')
+      setSyncProblem(Boolean(result.loadError))
       setIsHydrated(true)
       if (result.loadError) {
         setFeedback('تم فتح النسخة المحلية. السحابة غير جاهزة الآن.')
@@ -1158,24 +1195,26 @@ export default function MohammadLedgerApp() {
   useEffect(() => {
     if (!isHydrated) return undefined
     let cancelled = false
-    setSaveStatus('saving')
+    setSaveStatus(syncProblem ? 'local-only' : 'saving')
 
     saveMohammadPersistedState({ accounts, movements })
       .then((result) => {
         if (cancelled) return
         setStorageMode(result.mode)
-        setSaveStatus(result.supabaseOk ? 'saved' : 'local')
+        if (result.supabaseOk) setSyncProblem(false)
+        setSaveStatus(result.supabaseOk ? 'saved' : (syncProblem ? 'local-only' : 'local'))
       })
       .catch((err) => {
         if (cancelled) return
         console.warn('[mohammad-ledger] save failed:', err?.message || err)
+        setSyncProblem(true)
         setSaveStatus('local-only')
       })
 
     return () => {
       cancelled = true
     }
-  }, [accounts, movements, isHydrated])
+  }, [accounts, movements, isHydrated, syncProblem])
 
   useEffect(() => {
     if (!pendingUndo) return undefined
@@ -1599,6 +1638,7 @@ export default function MohammadLedgerApp() {
                   key={movement.id}
                   movement={movement}
                   activeAccounts={activeAccounts}
+                  balanceByAccountId={balanceByAccountId}
                   onResolve={resolveReviewMovement}
                   onEdit={editReviewMovement}
                   onCancel={cancelMovement}
@@ -1690,8 +1730,8 @@ export default function MohammadLedgerApp() {
     loading: 'تحميل',
     saving: 'حفظ',
     saved: storageMode === 'supabase' ? 'سحابي' : 'محلي',
-    local: 'محلي',
-    'local-only': 'محلي فقط',
+    local: 'هذا الجهاز',
+    'local-only': 'سحابة ناقصة',
   }[saveStatus] || 'محلي'
 
   return (
@@ -1935,6 +1975,7 @@ export default function MohammadLedgerApp() {
                     accounts={movementAccountsFor('source')}
                     onChange={(value) => updateMovementDraft('sourceAccountId', value)}
                     preferredAccountIds={preferredMovementAccountIds('source')}
+                    balanceByAccountId={balanceByAccountId}
                   />
                 </div>
                 <button type="button" className="ml3-step-next" disabled={!movementDraft.sourceAccountId} onClick={advanceMovementStep}>
@@ -1966,6 +2007,7 @@ export default function MohammadLedgerApp() {
                     value={movementDraft.destinationAccountId || ''}
                     accounts={movementAccountsFor('destination')}
                     onChange={(value) => updateMovementDraft('destinationAccountId', value)}
+                    balanceByAccountId={balanceByAccountId}
                   />
                 </div>
                 <button type="button" className="ml3-step-next" disabled={!movementDraft.destinationAccountId || sameLogicalAccount(draftSourceAccount, draftDestinationAccount)} onClick={advanceMovementStep}>
